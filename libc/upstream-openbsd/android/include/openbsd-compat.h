@@ -53,8 +53,6 @@ extern const char* __progname;
 /* OpenBSD has this, but we can't really implement it correctly on Linux. */
 #define issetugid() 0
 
-#define explicit_bzero(p, s) memset(p, 0, s)
-
 /* OpenBSD has these in <sys/param.h>, but "ALIGN" isn't something we want to reserve. */
 #define ALIGNBYTES (sizeof(uintptr_t) - 1)
 #define ALIGN(p) (((uintptr_t)(p) + ALIGNBYTES) &~ ALIGNBYTES)

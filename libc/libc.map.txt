@@ -332,6 +332,7 @@ LIBC {
     execvp;
     execvpe; # introduced=21
     exit;
+    explicit_bzero; # introduced=30
     faccessat;
     fallocate; # introduced=21
     fallocate64; # introduced=21

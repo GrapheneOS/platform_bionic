@@ -58,7 +58,7 @@ extern const char* __progname;
 #define issetugid() 0
 
 #if !defined(ANDROID_HOST_MUSL)
-#define explicit_bzero(p, s) memset(p, 0, s)
+#define explicit_bzero(p, s) explicit_bzero_grapheneos(p, s)
 #endif
 
 #if defined(ANDROID_HOST_MUSL)

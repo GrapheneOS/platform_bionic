@@ -13,15 +13,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+#include <stdint.h>
 #include <sys/cdefs.h>
 
 #include <private/bionic_defs.h>
+#include <private/bionic_globals.h>
 
 #include "pthread_internal.h"
 
 class thread_local_dtor {
  public:
-  void (*func) (void *);
+  uintptr_t func;
   void *arg;
   void *dso_handle; // unused...
   thread_local_dtor* next;
@@ -35,7 +37,7 @@ __BIONIC_WEAK_FOR_NATIVE_BRIDGE
 int __cxa_thread_atexit_impl(void (*func) (void *), void *arg, void *dso_handle) {
   thread_local_dtor* dtor = new thread_local_dtor();
 
-  dtor->func = func;
+  dtor->func = __libc_globals->dtor_cookie ^ reinterpret_cast<uintptr_t>(func);
   dtor->arg = arg;
   dtor->dso_handle = dso_handle;
 
@@ -54,7 +56,7 @@ extern "C" __LIBC_HIDDEN__ void __cxa_thread_finalize() {
     thread_local_dtor* current = thread->thread_local_dtors;
     thread->thread_local_dtors = current->next;
 
-    current->func(current->arg);
+    (reinterpret_cast<void (*)(void*)>(__libc_globals->dtor_cookie ^ current->func))(current->arg);
     if (__loader_remove_thread_local_dtor != nullptr) {
       __loader_remove_thread_local_dtor(current->dso_handle);
     }

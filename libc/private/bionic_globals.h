@@ -43,6 +43,7 @@
 
 struct libc_globals {
   vdso_entry vdso[VDSO_END];
+  long dtor_cookie;
   long setjmp_cookie;
   uintptr_t heap_pointer_tag;
 

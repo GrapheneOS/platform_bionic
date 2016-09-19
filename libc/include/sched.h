@@ -237,7 +237,10 @@ int sched_getcpu(void);
  */
 #if defined(__USE_GNU)
 typedef struct {
-  __CPU_BITTYPE  __bits[ CPU_SETSIZE / __CPU_BITS ];
+  union {
+    __CPU_BITTYPE  __bits_minimum[ CPU_SETSIZE / __CPU_BITS ];
+    __CPU_BITTYPE  __bits[0];
+  };
 } cpu_set_t;
 #endif
 

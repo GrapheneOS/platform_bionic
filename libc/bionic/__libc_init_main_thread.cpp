@@ -47,8 +47,18 @@ extern "C" int __set_tid_address(int* tid_address);
 __attribute__((aligned(PAGE_SIZE)))
 uintptr_t __stack_chk_guard[PAGE_SIZE / sizeof(uintptr_t)] = {0};
 
+#if __LP64__
+static const uintptr_t canary_mask = __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__ ?
+  0xffffffffffffff00UL :
+  0x00ffffffffffffffUL;
+#endif
+
 void __libc_init_global_stack_chk_guard(KernelArgumentBlock& args) {
   __libc_safe_arc4random_buf(&__stack_chk_guard[0], sizeof(__stack_chk_guard[0]), args);
+#if __LP64__
+  // Sacrifice 8 bits of entropy on 64-bit to mitigate non-terminated C string overflows
+  __stack_chk_guard[0] &= canary_mask;
+#endif
   if (mprotect(__stack_chk_guard, sizeof(__stack_chk_guard), PROT_READ) == -1) {
     async_safe_fatal("mprotect __stack_chk_guard: %s", strerror(errno));
   }

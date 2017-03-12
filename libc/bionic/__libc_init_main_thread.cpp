@@ -49,6 +49,12 @@ uintptr_t __stack_chk_guard[max_android_page_size() / sizeof(uintptr_t)] = {0};
 
 static pthread_internal_t main_thread;
 
+#if __LP64__
+static const uintptr_t canary_mask = __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__ ?
+  0xffffffffffffff00UL :
+  0x00ffffffffffffffUL;
+#endif
+
 // Setup for the main thread. For dynamic executables, this is called by the
 // linker _before_ libc is mapped in memory. This means that all writes to
 // globals from this function will apply to linker-private copies and will not
@@ -117,6 +123,10 @@ extern "C" void android_reset_stack_guards() {
   // before we initialize the TLS. Dynamic executables will initialize their copy of the global
   // stack protector from the one in the main thread's TLS.
   __libc_safe_arc4random_buf(&__stack_chk_guard[0], sizeof(__stack_chk_guard[0]));
+#if __LP64__
+  // Sacrifice 8 bits of entropy on 64-bit to mitigate non-terminated C string overflows
+  __stack_chk_guard[0] &= canary_mask;
+#endif
   if (mprotect(__stack_chk_guard, sizeof(__stack_chk_guard), PROT_READ) == -1) {
     async_safe_fatal("mprotect __stack_chk_guard: %s", strerror(errno));
   }

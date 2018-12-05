@@ -46,8 +46,13 @@
 #include <private/bionic_globals.h>
 #include <private/bionic_malloc_dispatch.h>
 
+#ifdef __LP64__
+#include "h_malloc.h"
+#define Malloc(function)  h_ ## function
+#else
 #include "jemalloc.h"
 #define Malloc(function)  je_ ## function
+#endif
 
 static constexpr MallocDispatch __libc_malloc_default_dispatch
   __attribute__((unused)) = {

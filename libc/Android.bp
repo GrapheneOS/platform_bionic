@@ -75,6 +75,7 @@ libc_common_flags = [
     // ever touch 0, 1, or 2 bytes into a call to memset, which was never going
     // to amortize.)
     "-fno-builtin",
+    "-DH_MALLOC_PREFIX",
 ]
 
 // Define some common cflags
@@ -119,21 +120,24 @@ cc_defaults {
     // warning since this is intended right now.
     ldflags: ["-Wl,-z,muldefs"],
 
-    product_variables: {
-        malloc_zero_contents: {
-            cflags: ["-DSCUDO_ZERO_CONTENTS"],
-        },
-        malloc_pattern_fill_contents: {
-            cflags: ["-DSCUDO_PATTERN_FILL_CONTENTS"],
-        },
-        malloc_not_svelte: {
-            cflags: ["-DUSE_SCUDO"],
-        },
-    },
-
-    lto: {
-        never: true,
-    },
+    multilib: {
+        lib32: {
+            product_variables: {
+                malloc_zero_contents: {
+                    cflags: ["-DSCUDO_ZERO_CONTENTS"],
+                },
+                malloc_pattern_fill_contents: {
+                     cflags: ["-DSCUDO_PATTERN_FILL_CONTENTS"],
+                },
+                malloc_not_svelte: {
+                   cflags: ["-DUSE_SCUDO"],
+                },
+            },
+            lto: {
+                never: true,
+            },
+        }
+    }
 }
 
 libc_scudo_product_variables = {
@@ -155,13 +159,23 @@ libc_scudo_product_variables = {
 // ========================================================
 cc_defaults {
     name: "libc_native_allocator_defaults",
+    whole_static_libs: ["libc_jemalloc_wrapper"],
+    multilib: {
+        lib32: {
+            cflags: ["-DUSE_SCUDO"],
+            whole_static_libs: ["libscudo"],
+            exclude_static_libs: [
+                "libjemalloc5",
+                "libc_jemalloc_wrapper",
+            ],
+        },
+        lib64: {
+            cflags: ["-DH_MALLOC_PREFIX"],
+            whole_static_libs: ["libhardened_malloc"],
+        },
+    },
 
-    whole_static_libs: [
-        "libjemalloc5",
-        "libc_jemalloc_wrapper",
-    ],
     header_libs: ["gwp_asan_headers"],
-    product_variables: libc_scudo_product_variables,
 }
 
 // Functions not implemented by jemalloc directly, or that need to
@@ -169,12 +183,20 @@ cc_defaults {
 cc_library_static {
     name: "libc_jemalloc_wrapper",
     defaults: ["libc_defaults"],
-    srcs: ["bionic/jemalloc_wrapper.cpp"],
+    multilib: {
+        lib32: {
+            // Used to pull in the jemalloc/hardened_malloc include directory so that if the
+            // library is removed, the include directory is also removed.
+            srcs: ["bionic/jemalloc_wrapper.cpp"],
+            static_libs: ["libjemalloc5"],
+        },
+        lib64: {
+            srcs: ["bionic/h_malloc_wrapper.cpp"],
+            static_libs: ["libhardened_malloc"],
+        },
+    },
     cflags: ["-fvisibility=hidden"],
 
-    // Used to pull in the jemalloc include directory so that if the
-    // library is removed, the include directory is also removed.
-    static_libs: ["libjemalloc5"],
 }
 
 // ========================================================

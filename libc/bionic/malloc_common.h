@@ -67,8 +67,16 @@ __END_DECLS
 
 #else
 
+#ifdef __LP64__
+#include "h_malloc.h"
+#define Malloc(function)  h_ ## function
+__BEGIN_DECLS
+int h_malloc_info(int options, FILE* fp);
+__END_DECLS
+#else
 #include "jemalloc.h"
 #define Malloc(function)  je_ ## function
+#endif
 
 #endif
 

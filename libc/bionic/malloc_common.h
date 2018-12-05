@@ -55,21 +55,26 @@ __END_DECLS
 
 #else // __has_feature(hwaddress_sanitizer)
 
-#if defined(USE_SCUDO)
+#ifdef  __LP64__
+#ifndef USE_H_MALLOC
+#error missing USE_H_MALLOC
+#endif
 
+#include "h_malloc.h"
+#define Malloc(function)  h_ ## function
+__BEGIN_DECLS
+int h_malloc_info(int options, FILE* fp);
+__END_DECLS
+
+#if defined(USE_SCUDO)
+#include "scudo.h"
+#endif
+
+#define BOTH_H_MALLOC_AND_SCUDO
+
+#else // 32-bit
 #include "scudo.h"
 #define Malloc(function)  scudo_ ## function
-
-#elif defined(USE_SCUDO_SVELTE)
-
-#include "scudo.h"
-#define Malloc(function)  scudo_svelte_ ## function
-
-#else
-
-#include "jemalloc.h"
-#define Malloc(function)  je_ ## function
-
 #endif
 
 #endif

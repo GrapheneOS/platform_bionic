@@ -30,3 +30,4 @@
 
 int     swapon(const char*, int) all
 int     swapoff(const char*) all
+void*   brk(void*)           all

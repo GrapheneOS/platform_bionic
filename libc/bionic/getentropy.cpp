@@ -31,26 +31,6 @@
 #include <sys/random.h>
 #include <unistd.h>
 
-static int getentropy_urandom(void* buffer, size_t buffer_size, int saved_errno) {
-  int fd = TEMP_FAILURE_RETRY(open("/dev/urandom", O_RDONLY | O_NOFOLLOW | O_CLOEXEC, 0));
-  if (fd == -1) return -1;
-
-  size_t collected = 0;
-  while (collected < buffer_size) {
-    ssize_t count = TEMP_FAILURE_RETRY(read(fd, static_cast<char*>(buffer) + collected,
-                                            buffer_size - collected));
-    if (count == -1) {
-      close(fd);
-      return -1;
-    }
-    collected += count;
-  }
-
-  close(fd);
-  errno = saved_errno;
-  return 0;
-}
-
 int getentropy(void* buffer, size_t buffer_size) {
   if (buffer_size > 256) {
     errno = EIO;
@@ -62,15 +42,9 @@ int getentropy(void* buffer, size_t buffer_size) {
   size_t collected = 0;
   while (collected < buffer_size) {
     long count = TEMP_FAILURE_RETRY(getrandom(static_cast<char*>(buffer) + collected,
-                                              buffer_size - collected, GRND_NONBLOCK));
+                                              buffer_size - collected, 0));
     if (count == -1) {
-      // EAGAIN: there isn't enough entropy right now.
-      // ENOSYS/EINVAL: getrandom(2) or GRND_NONBLOCK isn't supported.
-      // EFAULT: `buffer` is invalid.
-      // Try /dev/urandom regardless because it can't hurt,
-      // and we don't need to optimize the EFAULT case.
-      // See http://b/33059407 and http://b/67015565.
-      return getentropy_urandom(buffer, buffer_size, saved_errno);
+      return -1;
     }
     collected += count;
   }

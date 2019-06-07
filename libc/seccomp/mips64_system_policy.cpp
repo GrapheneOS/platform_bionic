@@ -5,60 +5,58 @@
 
 #include "seccomp_bpfs.h"
 const sock_filter mips64_system_filter[] = {
-BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5000, 0, 84),
-BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5153, 41, 0),
-BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5070, 21, 0),
-BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5031, 11, 0),
+BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5000, 0, 82),
+BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5164, 41, 0),
+BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5077, 21, 0),
+BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5034, 11, 0),
 BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5008, 5, 0),
 BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5005, 3, 0),
 BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5003, 1, 0),
-BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5002, 77, 76), //read|write
-BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5004, 76, 75), //close
-BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5006, 75, 74), //fstat
-BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5023, 3, 0),
-BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5013, 1, 0),
-BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5012, 72, 71), //lseek|mmap|mprotect|munmap
-BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5020, 71, 70), //rt_sigaction|rt_sigprocmask|ioctl|pread64|pwrite64|readv|writev
-BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5028, 70, 69), //sched_yield|mremap|msync|mincore|madvise
-BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5043, 5, 0),
-BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5038, 3, 0),
-BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5034, 1, 0),
-BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5032, 66, 65), //dup
-BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5037, 65, 64), //nanosleep|getitimer|setitimer
-BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5042, 64, 63), //getpid|sendfile|socket|connect
-BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5057, 1, 0),
+BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5002, 75, 74), //read|write
+BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5004, 74, 73), //close
+BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5006, 73, 72), //fstat
+BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5031, 3, 0),
+BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5023, 1, 0),
+BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5020, 70, 69), //lseek|mmap|mprotect|munmap|brk|rt_sigaction|rt_sigprocmask|ioctl|pread64|pwrite64|readv|writev
+BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5028, 69, 68), //sched_yield|mremap|msync|mincore|madvise
+BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5032, 68, 67), //dup
+BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5057, 5, 0),
+BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5043, 3, 0),
+BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5038, 1, 0),
+BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5037, 64, 63), //nanosleep|getitimer|setitimer
+BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5042, 63, 62), //getpid|sendfile|socket|connect
 BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5056, 62, 61), //sendto|recvfrom|sendmsg|recvmsg|shutdown|bind|listen|getsockname|getpeername|socketpair|setsockopt|getsockopt|clone
-BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5062, 61, 60), //execve|exit|wait4|kill|uname
-BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5110, 9, 0),
-BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5091, 5, 0),
-BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5089, 3, 0),
-BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5077, 1, 0),
-BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5076, 56, 55), //fcntl|flock|fsync|fdatasync|truncate|ftruncate
-BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5080, 55, 54), //getcwd|chdir|fchdir
-BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5090, 54, 53), //fchmod
-BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5093, 1, 0),
+BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5070, 1, 0),
+BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5062, 60, 59), //execve|exit|wait4|kill|uname
+BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5076, 59, 58), //fcntl|flock|fsync|fdatasync|truncate|ftruncate
+BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5132, 9, 0),
+BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5093, 5, 0),
+BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5091, 3, 0),
+BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5089, 1, 0),
+BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5080, 54, 53), //getcwd|chdir|fchdir
+BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5090, 53, 52), //fchmod
 BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5092, 52, 51), //fchown
-BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5109, 51, 50), //umask|gettimeofday|getrlimit|getrusage|sysinfo|times|ptrace|getuid|syslog|getgid|setuid|setgid|geteuid|getegid|setpgid|getppid
-BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5137, 5, 0),
-BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5134, 3, 0),
-BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5132, 1, 0),
-BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5130, 47, 46), //setsid|setreuid|setregid|getgroups|setgroups|setresuid|getresuid|setresgid|getresgid|getpgid|setfsuid|setfsgid|getsid|capget|capset|rt_sigpending|rt_sigtimedwait|rt_sigqueueinfo|rt_sigsuspend|sigaltstack
-BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5133, 46, 45), //personality
-BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5136, 45, 44), //statfs|fstatfs
-BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5151, 1, 0),
+BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5110, 1, 0),
+BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5109, 50, 49), //umask|gettimeofday|getrlimit|getrusage|sysinfo|times|ptrace|getuid|syslog|getgid|setuid|setgid|geteuid|getegid|setpgid|getppid
+BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5130, 49, 48), //setsid|setreuid|setregid|getgroups|setgroups|setresuid|getresuid|setresgid|getresgid|getpgid|setfsuid|setfsgid|getsid|capget|capset|rt_sigpending|rt_sigtimedwait|rt_sigqueueinfo|rt_sigsuspend|sigaltstack
+BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5151, 5, 0),
+BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5137, 3, 0),
+BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5134, 1, 0),
+BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5133, 45, 44), //personality
+BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5136, 44, 43), //statfs|fstatfs
 BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5150, 43, 42), //getpriority|setpriority|sched_setparam|sched_getparam|sched_setscheduler|sched_getscheduler|sched_get_priority_max|sched_get_priority_min|sched_rr_get_interval|mlock|munlock|mlockall|munlockall
-BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5152, 42, 41), //pivot_root
-BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5242, 21, 0),
-BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5200, 11, 0),
-BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5172, 5, 0),
-BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5168, 3, 0),
-BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5164, 1, 0),
-BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5162, 36, 35), //prctl|adjtimex|setrlimit|chroot|sync|acct|settimeofday|mount|umount2
-BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5167, 35, 34), //reboot|sethostname|setdomainname
-BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5170, 34, 33), //init_module|delete_module
-BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5194, 3, 0),
-BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5178, 1, 0),
-BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5173, 31, 30), //quotactl
+BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5153, 1, 0),
+BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5152, 41, 40), //pivot_root
+BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5162, 40, 39), //prctl|adjtimex|setrlimit|chroot|sync|acct|settimeofday|mount|umount2
+BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5242, 19, 0),
+BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5200, 9, 0),
+BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5178, 5, 0),
+BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5172, 3, 0),
+BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5168, 1, 0),
+BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5167, 34, 33), //reboot|sethostname|setdomainname
+BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5170, 33, 32), //init_module|delete_module
+BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5173, 32, 31), //quotactl
+BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5194, 1, 0),
 BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5193, 30, 29), //gettid|readahead|setxattr|lsetxattr|fsetxattr|getxattr|lgetxattr|fgetxattr|listxattr|llistxattr|flistxattr|removexattr|lremovexattr|fremovexattr|tkill
 BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5198, 29, 28), //futex|sched_setaffinity|sched_getaffinity|cacheflush
 BPF_JUMP(BPF_JMP|BPF_JGE|BPF_K, 5215, 5, 0),

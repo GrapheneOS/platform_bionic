@@ -1645,7 +1645,7 @@ cc_library {
         versions: ["10000"],
     },
 
-    symbol_ordering_file: "symbol_ordering",
+    //symbol_ordering_file: "symbol_ordering",
 }
 
 genrule {

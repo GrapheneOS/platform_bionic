@@ -1735,6 +1735,8 @@ cc_library {
         ],
     },
 
+    //symbol_ordering_file: "symbol_ordering",
+
     apex_available: [
         "//apex_available:platform",
         "com.android.runtime",

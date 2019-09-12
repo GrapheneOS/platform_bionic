@@ -222,7 +222,9 @@ ThreadMapping __allocate_thread_mapping(size_t stack_size, size_t stack_guard_si
   size_t mmap_size;
   if (__builtin_add_overflow(stack_size, stack_guard_size, &mmap_size)) return {};
   if (__builtin_add_overflow(mmap_size, layout.size(), &mmap_size)) return {};
+  if (__builtin_add_overflow(mmap_size, stack_guard_size, &mmap_size)) return {};
   if (__builtin_add_overflow(mmap_size, PTHREAD_GUARD_SIZE, &mmap_size)) return {};
+
 
   // Align the result to a page size.
   const size_t unaligned_size = mmap_size;
@@ -230,7 +232,6 @@ ThreadMapping __allocate_thread_mapping(size_t stack_size, size_t stack_guard_si
   if (mmap_size < unaligned_size) return {};
 
   // Create a new private anonymous map. Make the entire mapping PROT_NONE, then carve out a
-  // read+write area in the middle.
   const int flags = MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE;
   char* const space = static_cast<char*>(mmap(nullptr, mmap_size, PROT_NONE, flags, -1, 0));
   if (space == MAP_FAILED) {
@@ -240,13 +241,16 @@ ThreadMapping __allocate_thread_mapping(size_t stack_size, size_t stack_guard_si
                           mmap_size, strerror(errno));
     return {};
   }
-  const size_t writable_size = mmap_size - stack_guard_size - PTHREAD_GUARD_SIZE;
-  if (mprotect(space + stack_guard_size,
-               writable_size,
-               PROT_READ | PROT_WRITE) != 0) {
+
+  // carve out a read+write area for stack and static_tls w. guard in between
+  // guard region is set to PROT_NONE
+  // there should be a gap region between static_tls/pthread_internal_t for the stack guard of size stack_guard_size
+  char* const static_tls_space = space + stack_guard_size + stack_size + stack_guard_size;
+  if (mprotect(space + stack_guard_size, stack_size, PROT_READ | PROT_WRITE) != 0 ||
+      mprotect(static_tls_space, layout.size(), PROT_READ | PROT_WRITE) != 0) {
     async_safe_format_log(ANDROID_LOG_WARN, "libc",
                           "pthread_create failed: couldn't mprotect R+W %zu-byte thread mapping region: %s",
-                          writable_size, strerror(errno));
+                          stack_size + layout.size(), strerror(errno));
     munmap(space, mmap_size);
     return {};
   }
@@ -254,9 +258,9 @@ ThreadMapping __allocate_thread_mapping(size_t stack_size, size_t stack_guard_si
   ThreadMapping result = {};
   result.mmap_base = space;
   result.mmap_size = mmap_size;
-  result.static_tls = space + mmap_size - PTHREAD_GUARD_SIZE - layout.size();
-  result.stack_base = space;
-  result.stack_top = result.static_tls;
+  result.static_tls = static_tls_space;
+  result.stack_base = space + stack_guard_size;
+  result.stack_top = result.static_tls - stack_guard_size;
   return result;
 }
 
@@ -281,6 +285,7 @@ static int __allocate_thread(pthread_attr_t* attr, bionic_tcb** tcbp, void** chi
     stack_clean = true;
   } else {
     mapping = __allocate_thread_mapping(0, PTHREAD_GUARD_SIZE);
+
     if (mapping.mmap_base == nullptr) return EAGAIN;
 
     stack_top = static_cast<char*>(attr->stack_base) + attr->stack_size;

@@ -216,9 +216,10 @@ int __init_thread(pthread_internal_t* thread) {
 ThreadMapping __allocate_thread_mapping(size_t stack_size, size_t stack_guard_size) {
   const StaticTlsLayout& layout = __libc_shared_globals()->static_tls_layout;
 
-  // Allocate in order: stack guard, stack, static TLS, guard page.
+  // Allocate in order: stack guard, stack, guard page, static TLS, guard page.
   size_t mmap_size;
   if (__builtin_add_overflow(stack_size, stack_guard_size, &mmap_size)) return {};
+  if (__builtin_add_overflow(mmap_size, page_size(), &mmap_size)) return {};
   if (__builtin_add_overflow(mmap_size, layout.size(), &mmap_size)) return {};
   if (__builtin_add_overflow(mmap_size, PTHREAD_GUARD_SIZE, &mmap_size)) return {};
 
@@ -227,8 +228,8 @@ ThreadMapping __allocate_thread_mapping(size_t stack_size, size_t stack_guard_si
   mmap_size = __BIONIC_ALIGN(mmap_size, page_size());
   if (mmap_size < unaligned_size) return {};
 
-  // Create a new private anonymous map. Make the entire mapping PROT_NONE, then carve out a
-  // read+write area in the middle.
+  // Create a new private anonymous map. Make the entire mapping PROT_NONE, then carve out
+  // read+write areas for the stack and static TLS
   const int flags = MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE;
   char* const space = static_cast<char*>(mmap(nullptr, mmap_size, PROT_NONE, flags, -1, 0));
   if (space == MAP_FAILED) {
@@ -237,7 +238,6 @@ ThreadMapping __allocate_thread_mapping(size_t stack_size, size_t stack_guard_si
                           mmap_size);
     return {};
   }
-  const size_t writable_size = mmap_size - stack_guard_size - PTHREAD_GUARD_SIZE;
   int prot = PROT_READ | PROT_WRITE;
   const char* prot_str = "R+W";
 #ifdef __aarch64__
@@ -246,11 +246,22 @@ ThreadMapping __allocate_thread_mapping(size_t stack_size, size_t stack_guard_si
     prot_str = "R+W+MTE";
   }
 #endif
-  if (mprotect(space + stack_guard_size, writable_size, prot) != 0) {
+  if (mprotect(space + stack_guard_size, stack_size, prot) != 0) {
     async_safe_format_log(
         ANDROID_LOG_WARN, "libc",
-        "pthread_create failed: couldn't mprotect %s %zu-byte thread mapping region: %m", prot_str,
-        writable_size);
+        "pthread_create failed: couldn't mprotect %s %zu-byte stack mapping region: %m", prot_str,
+        stack_size);
+    munmap(space, mmap_size);
+    return {};
+  }
+
+  char* const static_tls_space = space + stack_guard_size + stack_size + page_size();
+
+  if (mprotect(static_tls_space, layout.size(), PROT_READ | PROT_WRITE) != 0) {
+    async_safe_format_log(
+        ANDROID_LOG_WARN, "libc",
+        "pthread_create failed: couldn't mprotect R+W %zu-byte static TLS mapping region: %m",
+        layout.size());
     munmap(space, mmap_size);
     return {};
   }
@@ -260,9 +271,9 @@ ThreadMapping __allocate_thread_mapping(size_t stack_size, size_t stack_guard_si
   result.mmap_size = mmap_size;
   result.mmap_base_unguarded = space + stack_guard_size;
   result.mmap_size_unguarded = mmap_size - stack_guard_size - PTHREAD_GUARD_SIZE;
-  result.static_tls = space + mmap_size - PTHREAD_GUARD_SIZE - layout.size();
+  result.static_tls = static_tls_space;
   result.stack_base = space;
-  result.stack_top = result.static_tls;
+  result.stack_top = space + stack_guard_size + stack_size;
   return result;
 }
 

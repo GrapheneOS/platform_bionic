@@ -130,6 +130,7 @@ void pthread_exit(void* return_value) {
       // That's not something we can do in C.
       __hwasan_thread_exit();
       _exit_with_stack_teardown(thread->mmap_base, thread->mmap_size);
+      munmap(thread - PTHREAD_GUARD_SIZE, sizeof(pthread_internal_t) + 2 * PTHREAD_GUARD_SIZE);
     }
   }
 

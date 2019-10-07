@@ -288,6 +288,7 @@ static int __allocate_thread(pthread_attr_t* attr, bionic_tcb** tcbp, void** chi
     stack_top = mapping.stack_top;
     attr->stack_base = mapping.stack_base;
     stack_clean = true;
+
   } else {
     mapping = __allocate_thread_mapping(0, PTHREAD_GUARD_SIZE);
     if (mapping.mmap_base == nullptr) return EAGAIN;
@@ -295,18 +296,20 @@ static int __allocate_thread(pthread_attr_t* attr, bionic_tcb** tcbp, void** chi
     stack_top = static_cast<char*>(attr->stack_base) + attr->stack_size;
   }
 
-  // Carve out space from the stack for the thread's pthread_internal_t. This
-  // memory isn't counted in pthread_attr_getstacksize.
-
-  // To safely access the pthread_internal_t and thread stack, we need to find a 16-byte aligned boundary.
-  stack_top = align_down(stack_top - sizeof(pthread_internal_t), 16);
-
-  pthread_internal_t* thread = reinterpret_cast<pthread_internal_t*>(stack_top);
-  if (!stack_clean) {
-    // If thread was not allocated by mmap(), it may not have been cleared to zero.
-    // So assume the worst and zero it.
-    memset(thread, 0, sizeof(pthread_internal_t));
+  // allocate a dedicated memory region for pthread_internal_t separate from the stack
+  char* const thread_space = static_cast<char *>(mmap(nullptr, sizeof(pthread_internal_t) + 2 * PTHREAD_GUARD_SIZE,
+              PROT_NONE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0));
+  if (thread_space == MAP_FAILED) {
+    munmap(mapping.stack_base, mapping.mmap_size);
+    return EAGAIN;
   }
+  pthread_internal_t* thread = reinterpret_cast<pthread_internal_t*>(thread_space + PTHREAD_GUARD_SIZE);
+  if (mprotect(thread, sizeof(pthread_internal_t), PROT_READ|PROT_WRITE) != 0) {
+    munmap(mapping.stack_base, mapping.mmap_size);
+    munmap(thread_space, sizeof(pthread_internal_t) + 2 * PTHREAD_GUARD_SIZE);
+    return EAGAIN;
+  }
+
 
   // Locate static TLS structures within the mapped region.
   const StaticTlsLayout& layout = __libc_shared_globals()->static_tls_layout;
@@ -321,6 +324,7 @@ static int __allocate_thread(pthread_attr_t* attr, bionic_tcb** tcbp, void** chi
   __init_bionic_tls_ptrs(tcb, tls);
 
   attr->stack_size = stack_top - static_cast<char*>(attr->stack_base);
+
   thread->attr = *attr;
   thread->mmap_base = mapping.mmap_base;
   thread->mmap_size = mapping.mmap_size;
@@ -415,6 +419,8 @@ int pthread_create(pthread_t* thread_out, pthread_attr_t const* attr,
     if (thread->mmap_size != 0) {
       munmap(thread->mmap_base, thread->mmap_size);
     }
+    // unmap pthread_internal_t which is separated from the stack
+    munmap(thread - PTHREAD_GUARD_SIZE, sizeof(pthread_internal_t) + 2 * PTHREAD_GUARD_SIZE);
     async_safe_format_log(ANDROID_LOG_WARN, "libc", "pthread_create failed: clone failed: %s",
                           strerror(clone_errno));
     return clone_errno;

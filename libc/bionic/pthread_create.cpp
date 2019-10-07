@@ -288,6 +288,28 @@ static int __allocate_thread(pthread_attr_t* attr, bionic_tcb** tcbp, void** chi
     stack_top = mapping.stack_top;
     attr->stack_base = mapping.stack_base;
     stack_clean = true;
+    // Make sure the stack size and guard size are multiples of PAGE_SIZE.
+    size_t stack_size = BIONIC_ALIGN(attr->stack_size + PAGE_SIZE, PAGE_SIZE);
+    mmap_size = stack_size + gap_size;
+    if (mmap_size < stack_size) {
+      return EAGAIN; // overflow
+    }
+
+    attr->guard_size = BIONIC_ALIGN(attr->guard_size, PAGE_SIZE);
+    attr->stack_base = __create_thread_mapped_space(mmap_size, attr->guard_size, gap_size);
+    if (attr->stack_base == NULL) {
+      return EAGAIN;
+    }
+    stack_top = reinterpret_cast<uint8_t*>(attr->stack_base) + stack_size;
+
+    // Choose a random base within the first page of the stack. Waste no more than
+    // 1% of the available stack space.
+    size_t max_random_base_size = attr->stack_size / 100;
+    if (max_random_base_size > PAGE_SIZE - 1) {
+      max_random_base_size = PAGE_SIZE - 1;
+    }
+    size_t random_base_size = arc4random_uniform(max_random_base_size);
+    stack_top -= random_base_size;
   } else {
     mapping = __allocate_thread_mapping(0, PTHREAD_GUARD_SIZE);
     if (mapping.mmap_base == nullptr) return EAGAIN;
@@ -295,17 +317,15 @@ static int __allocate_thread(pthread_attr_t* attr, bionic_tcb** tcbp, void** chi
     stack_top = static_cast<char*>(attr->stack_base) + attr->stack_size;
   }
 
-  // Carve out space from the stack for the thread's pthread_internal_t. This
-  // memory isn't counted in pthread_attr_getstacksize.
+  stack_top = align_down(stack_top, 16);
 
-  // To safely access the pthread_internal_t and thread stack, we need to find a 16-byte aligned boundary.
-  stack_top = align_down(stack_top - sizeof(pthread_internal_t), 16);
-
-  pthread_internal_t* thread = reinterpret_cast<pthread_internal_t*>(stack_top);
-  if (!stack_clean) {
-    // If thread was not allocated by mmap(), it may not have been cleared to zero.
-    // So assume the worst and zero it.
-    memset(thread, 0, sizeof(pthread_internal_t));
+  // allocate a dedicated memory region for pthread_internal_t
+  pthread_internal_t* thread = static_cast<pthread_internal_t*>(
+      mmap(nullptr, sizeof(pthread_internal_t), PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS,
+           -1, 0));
+  if (thread == MAP_FAILED) {
+    munmap(mapping.stack_base, mapping.mmap_size);
+    return EAGAIN;
   }
 
   // Locate static TLS structures within the mapped region.
@@ -415,6 +435,7 @@ int pthread_create(pthread_t* thread_out, pthread_attr_t const* attr,
     if (thread->mmap_size != 0) {
       munmap(thread->mmap_base, thread->mmap_size);
     }
+    munmap(thread, sizeof(pthread_internal_t));
     async_safe_format_log(ANDROID_LOG_WARN, "libc", "pthread_create failed: clone failed: %s",
                           strerror(clone_errno));
     return clone_errno;

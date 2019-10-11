@@ -228,12 +228,16 @@ ThreadMapping __allocate_thread_mapping(size_t stack_size, size_t stack_guard_si
 
   // Address calculated using stack_size is passed to mprotect later, so make it page-aligned.
   stack_size = __builtin_align_up(stack_size, page_size());
+  // Round up static TLS layout size to be multiple of page size as well.
+  size_t static_tls_layout_size = __builtin_align_up(layout.size(), page_size());
 
-  // Allocate in order: stack guard, stack, guard page, static TLS, libgen buffers, guard page.
+  // Allocate in order: stack guard, stack, guard page, pthread_internal_t, static TLS, libgen buffers, guard page.
   size_t mmap_size;
   if (__builtin_add_overflow(stack_size, stack_guard_size, &mmap_size)) return {};
   if (__builtin_add_overflow(mmap_size, page_size(), &mmap_size)) return {};
-  if (__builtin_add_overflow(mmap_size, layout.size(), &mmap_size)) return {};
+  size_t thread_page_size = __builtin_align_up(sizeof(pthread_internal_t), page_size());
+  if (__builtin_add_overflow(mmap_size, thread_page_size, &mmap_size)) return {};
+  if (__builtin_add_overflow(mmap_size, static_tls_layout_size, &mmap_size)) return {};
   if (__builtin_add_overflow(mmap_size, PTHREAD_GUARD_SIZE, &mmap_size)) return {};
   // Add space for the dedicated libgen buffers page(s).
   size_t libgen_buffers_padded_size = __builtin_align_up(sizeof(libgen_buffers), page_size());
@@ -287,7 +291,8 @@ ThreadMapping __allocate_thread_mapping(size_t stack_size, size_t stack_guard_si
   //
   // [ PTHREAD_GUARD_SIZE ]
   // [ libgen_buffers_padded_size (for dedicated page(s) for libgen buffers) ]
-  // [ layout.size() (for static TLS) ]
+  // [ static_tls_layout_size ]
+  // [ thread_page_size (for pthread_internal_t) ]
   // [ stack_size ]
   // [ stack_guard_size ]
 
@@ -297,7 +302,7 @@ ThreadMapping __allocate_thread_mapping(size_t stack_size, size_t stack_guard_si
   result.mmap_base_unguarded = space + stack_guard_size;
   result.mmap_size_unguarded = mmap_size - stack_guard_size - PTHREAD_GUARD_SIZE;
   result.libgen_buffers = space + mmap_size - PTHREAD_GUARD_SIZE - libgen_buffers_padded_size;
-  result.static_tls = result.libgen_buffers - layout.size();
+  result.static_tls = result.libgen_buffers - static_tls_layout_size;
   result.stack_base = space;
   result.stack_top = space + stack_guard_size + stack_size;
   return result;
@@ -329,13 +334,8 @@ static int __allocate_thread(pthread_attr_t* attr, bionic_tcb** tcbp, void** chi
     stack_top = static_cast<char*>(attr->stack_base) + attr->stack_size;
   }
 
-  // Carve out space from the stack for the thread's pthread_internal_t. This
-  // memory isn't counted in pthread_attr_getstacksize.
-
-  // To safely access the pthread_internal_t and thread stack, we need to find a 16-byte aligned boundary.
-  stack_top = __builtin_align_down(stack_top - sizeof(pthread_internal_t), 16);
-
-  pthread_internal_t* thread = reinterpret_cast<pthread_internal_t*>(stack_top);
+  pthread_internal_t* thread = reinterpret_cast<pthread_internal_t*>(
+      mapping.static_tls - __builtin_align_up(sizeof(pthread_internal_t), page_size()));
   if (!stack_clean) {
     // If thread was not allocated by mmap(), it may not have been cleared to zero.
     // So assume the worst and zero it.

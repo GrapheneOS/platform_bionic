@@ -29,6 +29,7 @@
 #include <pthread.h>
 
 #include <errno.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
 #include <sys/prctl.h>
@@ -209,7 +210,6 @@ int __init_thread(pthread_internal_t* thread) {
   return 0;
 }
 
-
 // Allocate a thread's primary mapping. This mapping includes static TLS and
 // optionally a stack. Static TLS includes ELF TLS segments and the bionic_tls
 // struct.
@@ -220,13 +220,24 @@ ThreadMapping __allocate_thread_mapping(size_t stack_size, size_t stack_guard_si
 
   size_t thread_page_size = __BIONIC_ALIGN(sizeof(pthread_internal_t), PAGE_SIZE);
 
-  // Allocate in order: stack guard, stack, guard page, pthread_internal_t, static TLS, guard page.
+  // Place a randomly sized gap above the stack, up to 10% as large as the stack
+  // on 32-bit and 50% on 64-bit where virtual memory is plentiful.
+#if __LP64__
+  size_t max_gap_size = stack_size / 2;
+#else
+  size_t max_gap_size = stack_size / 10;
+#endif
+  // Make sure random stack top guard size are multiples of PAGE_SIZE.
+  size_t gap_size = __BIONIC_ALIGN(arc4random_uniform(max_gap_size), PAGE_SIZE);
+
+  // Allocate in order: stack guard, stack, (random) guard page(s), pthread_internal_t, static TLS, guard page.
   size_t mmap_size;
   if (__builtin_add_overflow(stack_size, stack_guard_size, &mmap_size)) return {};
-  if (__builtin_add_overflow(mmap_size, PTHREAD_GUARD_SIZE, &mmap_size)) return {};
+  if (__builtin_add_overflow(mmap_size, gap_size, &mmap_size)) return {};
   if (__builtin_add_overflow(mmap_size, thread_page_size, &mmap_size)) return {};
   if (__builtin_add_overflow(mmap_size, layout.size(), &mmap_size)) return {};
   if (__builtin_add_overflow(mmap_size, PTHREAD_GUARD_SIZE, &mmap_size)) return {};
+
 
   // Align the result to a page size.
   const size_t unaligned_size = mmap_size;
@@ -245,15 +256,21 @@ ThreadMapping __allocate_thread_mapping(size_t stack_size, size_t stack_guard_si
     return {};
   }
 
-  if (mprotect(space + stack_guard_size, stack_size, PROT_READ | PROT_WRITE) != 0) {
+  // Stack is at the lower end of mapped space, stack guard region is at the lower end of stack.
+  // Make the usable portion of the stack between the guard region and random gap readable and
+  // writable.
+  if (mprotect((space + stack_guard_size), stack_size, PROT_READ | PROT_WRITE) == -1) {
     async_safe_format_log(ANDROID_LOG_WARN, "libc",
                           "pthread_create failed: couldn't mprotect R+W %zu-byte thread mapping region: %s",
                           stack_size, strerror(errno));
     munmap(space, mmap_size);
     return {};
   }
+  prctl(PR_SET_VMA, PR_SET_VMA_ANON_NAME, space, stack_guard_size, "thread stack btm guard page");
+  char* const stack_top_guard = space + stack_guard_size + stack_size; 
+  prctl(PR_SET_VMA, PR_SET_VMA_ANON_NAME, stack_top_guard, gap_size, "thread stack top random gap");
 
-  char* const thread = space + stack_guard_size + stack_size + PTHREAD_GUARD_SIZE;
+  char* const thread = space + stack_guard_size + stack_size + gap_size;
   char* const static_tls_space = thread + thread_page_size;
 
   if (mprotect(thread, thread_page_size + layout.size(), PROT_READ | PROT_WRITE) != 0) {
@@ -269,7 +286,10 @@ ThreadMapping __allocate_thread_mapping(size_t stack_size, size_t stack_guard_si
   result.mmap_size = mmap_size;
   result.static_tls = static_tls_space;
   result.stack_base = space;
-  result.stack_top = space + stack_guard_size + stack_size;
+  // Choose a random base within the first page of the stack. Waste no more than
+  // 1% of the available stack space.
+  result.stack_top = space + stack_guard_size + stack_size - arc4random_uniform(sizeof(pthread_internal_t));
+  result.stack_top = reinterpret_cast<char*>(__BIONIC_ALIGN_DOWN(reinterpret_cast<size_t>(result.stack_top), 16));
   return result;
 }
 
@@ -280,7 +300,6 @@ static int __allocate_thread(pthread_attr_t* attr, bionic_tcb** tcbp, void** chi
 
   if (attr->stack_base == nullptr) {
     // The caller didn't provide a stack, so allocate one.
-
     // Make sure the guard size is a multiple of PAGE_SIZE.
     const size_t unaligned_guard_size = attr->guard_size;
     attr->guard_size = __BIONIC_ALIGN(attr->guard_size, PAGE_SIZE);
@@ -295,7 +314,6 @@ static int __allocate_thread(pthread_attr_t* attr, bionic_tcb** tcbp, void** chi
   } else {
     mapping = __allocate_thread_mapping(0, PTHREAD_GUARD_SIZE);
     if (mapping.mmap_base == nullptr) return EAGAIN;
-
     stack_top = static_cast<char*>(attr->stack_base) + attr->stack_size;
   }
 

@@ -29,6 +29,7 @@
 #include <pthread.h>
 
 #include <errno.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/auxv.h>
 #include <sys/mman.h>
@@ -229,10 +230,20 @@ ThreadMapping __allocate_thread_mapping(size_t stack_size, size_t stack_guard_si
   // Round up static TLS layout size to be multiple of page size as well.
   size_t static_tls_layout_size = __builtin_align_up(layout.size(), page_size());
 
-  // Allocate in order: stack guard, stack, guard page, pthread_internal_t, static TLS, libgen buffers, guard page.
+  // Place a randomly sized gap above the stack, up to 10% as large as the stack
+  // on 32-bit and 50% on 64-bit where virtual memory is plentiful.
+#if __LP64__
+  size_t max_gap_size = stack_size / 2;
+#else
+  size_t max_gap_size = stack_size / 10;
+#endif
+  // Make sure random stack top guard size are multiples of page size.
+  size_t gap_size = __builtin_align_up(arc4random_uniform(max_gap_size), page_size());
+
+  // Allocate in order: stack guard, stack, (random) guard page(s), pthread_internal_t, static TLS, libgen buffers, guard page.
   size_t mmap_size;
   if (__builtin_add_overflow(stack_size, stack_guard_size, &mmap_size)) return {};
-  if (__builtin_add_overflow(mmap_size, page_size(), &mmap_size)) return {};
+  if (__builtin_add_overflow(mmap_size, gap_size, &mmap_size)) return {};
   size_t thread_page_size = __builtin_align_up(sizeof(pthread_internal_t), page_size());
   if (__builtin_add_overflow(mmap_size, thread_page_size, &mmap_size)) return {};
   if (__builtin_add_overflow(mmap_size, static_tls_layout_size, &mmap_size)) return {};
@@ -264,6 +275,9 @@ ThreadMapping __allocate_thread_mapping(size_t stack_size, size_t stack_guard_si
     prot_str = "R+W+MTE";
   }
 #endif
+  // Stack is at the lower end of mapped space, stack guard region is at the lower end of stack.
+  // Make the usable portion of the stack between the guard region and random gap readable and
+  // writable.
   if (mprotect(space + stack_guard_size, stack_size, prot) != 0) {
     async_safe_format_log(
         ANDROID_LOG_WARN, "libc",
@@ -272,8 +286,11 @@ ThreadMapping __allocate_thread_mapping(size_t stack_size, size_t stack_guard_si
     munmap(space, mmap_size);
     return {};
   }
+  prctl(PR_SET_VMA, PR_SET_VMA_ANON_NAME, space, stack_guard_size, "stack guard");
+  char* const stack_top_guard = space + stack_guard_size + stack_size;
+  prctl(PR_SET_VMA, PR_SET_VMA_ANON_NAME, stack_top_guard, gap_size, "stack top guard");
 
-  const size_t non_stack_writeable_offset = stack_guard_size + stack_size + page_size();
+  const size_t non_stack_writeable_offset = stack_guard_size + stack_size + gap_size;
   const size_t non_stack_writeable_size = mmap_size - non_stack_writeable_offset - PTHREAD_GUARD_SIZE;
 
   if (mprotect(space + non_stack_writeable_offset, non_stack_writeable_size, PROT_READ | PROT_WRITE) != 0) {
@@ -291,6 +308,7 @@ ThreadMapping __allocate_thread_mapping(size_t stack_size, size_t stack_guard_si
   // [ libgen_buffers_padded_size (for dedicated page(s) for libgen buffers) ]
   // [ static_tls_layout_size ]
   // [ thread_page_size (for pthread_internal_t) ]
+  // [ gap_size (for (random) guard page(s)) ]
   // [ stack_size ]
   // [ stack_guard_size ]
 
@@ -302,7 +320,10 @@ ThreadMapping __allocate_thread_mapping(size_t stack_size, size_t stack_guard_si
   result.libgen_buffers = space + mmap_size - PTHREAD_GUARD_SIZE - libgen_buffers_padded_size;
   result.static_tls = result.libgen_buffers - static_tls_layout_size;
   result.stack_base = space;
-  result.stack_top = space + stack_guard_size + stack_size;
+  // Choose a random base within the first page of the stack. Waste no more
+  // than the space originally wasted by pthread_internal_t for compatibility.
+  result.stack_top = space + stack_guard_size + stack_size - arc4random_uniform(sizeof(pthread_internal_t));
+  result.stack_top = __builtin_align_down(result.stack_top, 16);
   return result;
 }
 

@@ -61,6 +61,7 @@
 #endif
 
 #define __BIONIC_ALIGN(__value, __alignment) (((__value) + (__alignment)-1) & ~((__alignment)-1))
+#define __BIONIC_ALIGN_DOWN(value, alignment) ((value) & ~((alignment) - 1))
 
 /*
  * The __CONCAT macro is used to concatenate parts of symbol names, e.g.

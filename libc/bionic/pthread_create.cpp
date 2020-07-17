@@ -219,6 +219,8 @@ int __init_thread(pthread_internal_t* thread) {
 ThreadMapping __allocate_thread_mapping(size_t stack_size, size_t stack_guard_size) {
   const StaticTlsLayout& layout = __libc_shared_globals()->static_tls_layout;
 
+  // round up if the given stack size is not in multiples of PAGE_SIZE
+  stack_size = __BIONIC_ALIGN(stack_size, PAGE_SIZE);
   size_t thread_page_size = __BIONIC_ALIGN(sizeof(pthread_internal_t), PAGE_SIZE);
 
   // Place a randomly sized gap above the stack, up to 10% as large as the stack
@@ -275,7 +277,7 @@ ThreadMapping __allocate_thread_mapping(size_t stack_size, size_t stack_guard_si
 
   if (mprotect(thread, thread_page_size + layout.size(), PROT_READ | PROT_WRITE) != 0) {
     async_safe_format_log(ANDROID_LOG_WARN, "libc",
-                          "pthread_create failed: couldn't mprotect R+W %zu-byte thread mapping region: %s",
+                          "pthread_create failed: couldn't mprotect R+W %zu-byte static TLS mapping region: %s",
                           layout.size(), strerror(errno));
     munmap(space, mmap_size);
     return {};

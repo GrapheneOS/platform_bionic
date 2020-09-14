@@ -2457,32 +2457,42 @@ cc_library {
 // allocator. To use it, add it as the first shared library.
 cc_defaults {
     name: "libc_scudo_wrapper_defaults",
-    srcs: [
-        "bionic/gwp_asan_wrappers.cpp",
-        "bionic/heap_tagging.cpp",
-        "bionic/malloc_common.cpp",
-        "bionic/malloc_common_dynamic.cpp",
-        "bionic/malloc_heapprofd.cpp",
-        "bionic/malloc_limit.cpp",
-        "bionic/scudo_wrapper.cpp",
-        "bionic/__set_errno.cpp",
-    ],
+    multilib: {
+        lib32: {
+            srcs: [
+            "bionic/gwp_asan_wrappers.cpp",
+            "bionic/heap_tagging.cpp",
+            "bionic/malloc_common.cpp",
+            "bionic/malloc_common_dynamic.cpp",
+            "bionic/malloc_heapprofd.cpp",
+            "bionic/malloc_limit.cpp",
+            "bionic/scudo_wrapper.cpp",
+            "bionic/__set_errno.cpp",
+        ],
+        cflags: [
+            "-DUSE_SCUDO",
+            "-fno-emulated-tls", // Required for GWP-ASan.
+        ],
+        shared_libs: ["libscudo_wrapper"],
+
+        header_libs: [
+            "libc_headers",
+            "gwp_asan_headers",
+        ],
+
+        static_libs: [
+            "libasync_safe",
+            "gwp_asan",
+        ],
+    },
+    lib64: {
+        srcs: ["bionic/h_malloc_wrapper.cpp"],
     cflags: [
-        "-DUSE_SCUDO",
-        "-fno-emulated-tls", // Required for GWP-ASan.
+        "-DH_MALLOC_PREFIX",
     ],
-    shared_libs: ["libscudo_wrapper"],
-
-    header_libs: [
-        "libc_headers",
-        "gwp_asan_headers",
-    ],
-
-    static_libs: [
-        "libasync_safe",
-        "gwp_asan",
-    ],
-
+    static_libs: ["libhardened_malloc"],
+    },
+},
     arch: {
         arm: {
             srcs: [":syscalls-arm.S"],

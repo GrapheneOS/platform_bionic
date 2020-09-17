@@ -43,8 +43,8 @@ int getentropy(void* buffer, size_t buffer_size) {
 
   size_t collected = 0;
   while (collected < buffer_size) {
-    long count = TEMP_FAILURE_RETRY(getrandom(static_cast<char*>(buffer) + collected,
-                                              buffer_size - collected, 0));
+    long count = TEMP_FAILURE_RETRY(
+        getrandom(static_cast<char*>(buffer) + collected, buffer_size - collected, 0));
     if (count == -1) {
       return -1;
     }

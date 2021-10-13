@@ -57,8 +57,6 @@ extern const char* __progname;
 /* OpenBSD has this, but we can't really implement it correctly on Linux. */
 #define issetugid() 0
 
-#define explicit_bzero(p, s) memset(p, 0, s)
-
 /* OpenBSD has this in paths.h. But this directory doesn't normally exist.
  * Even when it does exist, only the 'shell' user has permissions.
  */

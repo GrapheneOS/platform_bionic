@@ -332,6 +332,7 @@ LIBC {
     execvp;
     execvpe;
     exit;
+    explicit_bzero; # introduced=33
     faccessat;
     fallocate;
     fallocate64;

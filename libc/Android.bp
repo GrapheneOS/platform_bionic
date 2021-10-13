@@ -1071,6 +1071,7 @@ cc_library_static {
         "bionic/eventfd.cpp",
         "bionic/exec.cpp",
         "bionic/execinfo.cpp",
+        "bionic/explicit_bzero.cpp",
         "bionic/faccessat.cpp",
         "bionic/fchmod.cpp",
         "bionic/fchmodat.cpp",

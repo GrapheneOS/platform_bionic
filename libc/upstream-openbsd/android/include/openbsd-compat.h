@@ -41,10 +41,6 @@ extern const char* __progname;
 #define PROTO_NORMAL(x)
 #define WRAP(x) x
 
-#if !defined(ANDROID_HOST_MUSL)
-#define explicit_bzero(p, s) memset_explicit(p, 0, s)
-#endif
-
 #if defined(ANDROID_HOST_MUSL)
 #define __LIBC_HIDDEN__ __attribute__((visibility("hidden")))
 #endif

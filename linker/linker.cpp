@@ -910,8 +910,8 @@ static int open_library_in_zipfile(ZipArchiveCache* zip_archive_cache,
   const char* zip_path = buf;
   const char* file_path = &buf[separator - path + 2];
   int fd;
-  if (!strncmp("/proc/self/fd/", zip_path, strlen("/proc/self/fd/")) &&
-        sscanf(zip_path, "/proc/self/fd/%d", &fd) == 1) {
+  if (!strncmp("/gmscompat_fd_", zip_path, strlen("/gmscompat_fd_")) &&
+        sscanf(zip_path, "/gmscompat_fd_%d", &fd) == 1) {
     fd = dup(fd);
   } else {
     fd = TEMP_FAILURE_RETRY(open(zip_path, O_RDONLY | O_CLOEXEC));

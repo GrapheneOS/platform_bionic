@@ -116,7 +116,14 @@ void __init_tcb_dtv(bionic_tcb* tcb) {
 // Note in particular that it is not possible to return from any existing
 // stack frame with stack protector enabled after this function is called.
 extern "C" void android_reset_stack_guards() {
-  if (mprotect(__stack_chk_guard, sizeof(__stack_chk_guard), PROT_READ|PROT_WRITE) == -1) {
+  int prot_r = PROT_READ;
+#ifdef __aarch64__
+  if (atomic_load(&__libc_globals->memtag_stack)) {
+    prot_r |= PROT_MTE;
+  }
+#endif
+
+  if (mprotect(__stack_chk_guard, sizeof(__stack_chk_guard), prot_r | PROT_WRITE) == -1) {
     async_safe_fatal("mprotect __stack_chk_guard: %s", strerror(errno));
   }
   // The TLS stack guard is set from the global, so ensure that we've initialized the global
@@ -127,7 +134,7 @@ extern "C" void android_reset_stack_guards() {
   // Sacrifice 8 bits of entropy on 64-bit to mitigate non-terminated C string overflows
   __stack_chk_guard[0] &= canary_mask;
 #endif
-  if (mprotect(__stack_chk_guard, sizeof(__stack_chk_guard), PROT_READ) == -1) {
+  if (mprotect(__stack_chk_guard, sizeof(__stack_chk_guard), prot_r) == -1) {
     async_safe_fatal("mprotect __stack_chk_guard: %s", strerror(errno));
   }
   __init_tcb_stack_guard(__get_bionic_tcb());

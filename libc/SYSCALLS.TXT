@@ -27,6 +27,7 @@
 # genrules in Android.bp.
 
 int     execve(const char*, char* const*, char* const*)  all
+int     __execveat:execveat(int, const char*, char* const*, char* const*, int)  all
 
 uid_t   getuid:getuid32()         lp32
 uid_t   getuid:getuid()           lp64

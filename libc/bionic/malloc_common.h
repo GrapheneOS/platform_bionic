@@ -68,6 +68,7 @@ __END_DECLS
 
 #if defined(USE_SCUDO)
 #include "scudo.h"
+void InitNativeAllocatorDispatch(libc_globals* globals);
 #endif
 
 #define BOTH_H_MALLOC_AND_SCUDO

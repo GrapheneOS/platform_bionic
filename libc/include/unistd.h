@@ -93,6 +93,7 @@ int execv(const char* __path, char* const* __argv);
 int execvp(const char* __file, char* const* __argv);
 int execvpe(const char* __file, char* const* __argv, char* const* __envp) __INTRODUCED_IN(21);
 int execve(const char* __file, char* const* __argv, char* const* __envp);
+int execveat(int dirfd, const char* __file, char* const* __argv, char* const* __envp, int flags);
 int execl(const char* __path, const char* __arg0, ...) __attribute__((__sentinel__));
 int execlp(const char* __file, const char* __arg0, ...) __attribute__((__sentinel__));
 int execle(const char* __path, const char* __arg0, ... /*,  char* const* __envp */)

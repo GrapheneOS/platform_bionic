@@ -181,3 +181,9 @@ int fexecve(int fd, char* const* argv, char* const* envp) {
   if (errno == ENOENT) errno = EBADF;
   return -1;
 }
+
+extern "C" int __execveat(int dirfd, const char* pathname, char* const* argv, char* const* envp, int flags);
+
+int execveat(int dirfd, const char* pathname, char* const* argv, char* const* envp, int flags) {
+  return __execveat(dirfd, pathname, argv, envp, flags);
+}

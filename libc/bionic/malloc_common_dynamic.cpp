@@ -374,6 +374,10 @@ extern "C" const char* __scudo_get_ring_buffer_addr();
 
 // Initializes memory allocation framework once per process.
 static void MallocInitImpl(libc_globals* globals) {
+#if defined(USE_H_MALLOC) && defined(USE_SCUDO)
+  InitNativeAllocatorDispatch(globals);
+#endif
+
   char prop[PROP_VALUE_MAX];
   char* options = prop;
 

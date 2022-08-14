@@ -189,3 +189,9 @@ __attribute__((no_sanitize("memtag"))) int execve(const char* pathname, char* co
   __get_thread()->vfork_child_stack_bottom = __builtin_frame_address(0);
   return __execve(pathname, argv, envp);
 }
+
+extern "C" int __execveat(int dirfd, const char* pathname, char* const* argv, char* const* envp, int flags);
+
+int execveat(int dirfd, const char* pathname, char* const* argv, char* const* envp, int flags) {
+  return __execveat(dirfd, pathname, argv, envp, flags);
+}

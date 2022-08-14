@@ -73,6 +73,7 @@ tgkill(pid_t tgid, pid_t tid, int sig) all
 
 __brk:brk(void*) all
 execve(const char*, char* const*, char* const*)  all
+__execveat:execveat(int, const char*, char* const*, char* const*, int)  all
 __ptrace:ptrace(int request, int pid, void* addr, void* data) all
 
 # <sys/resource.h>

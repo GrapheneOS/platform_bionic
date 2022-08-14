@@ -329,6 +329,7 @@ LIBC {
     execlp;
     execv;
     execve;
+    execveat;
     execvp;
     execvpe; # introduced=21
     exit;

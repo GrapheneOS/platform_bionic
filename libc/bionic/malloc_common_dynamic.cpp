@@ -375,7 +375,11 @@ extern "C" size_t __scudo_get_ring_buffer_size();
 extern "C" size_t __scudo_get_stack_depot_size();
 
 // Initializes memory allocation framework once per process.
-void MallocInitImpl(libc_globals* globals) {
+static void MallocInitImpl(libc_globals* globals) {
+#if defined(BOTH_H_MALLOC_AND_SCUDO)
+  InitNativeAllocatorDispatch(globals);
+#endif
+
   char prop[PROP_VALUE_MAX];
   char* options = prop;
 

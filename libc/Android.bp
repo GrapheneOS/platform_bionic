@@ -114,21 +114,17 @@ cc_defaults {
     // warning since this is intended right now.
     ldflags: ["-Wl,-z,muldefs"],
 
-    multilib: {
-        lib32: {
-            product_variables: {
-                malloc_zero_contents: {
-                    cflags: ["-DSCUDO_ZERO_CONTENTS"],
-                },
-                malloc_pattern_fill_contents: {
-                     cflags: ["-DSCUDO_PATTERN_FILL_CONTENTS"],
-                },
-                malloc_not_svelte: {
-                   cflags: ["-DUSE_SCUDO"],
-                },
-            },
-        }
-    }
+    product_variables: {
+        malloc_zero_contents: {
+            cflags: ["-DSCUDO_ZERO_CONTENTS"],
+        },
+        malloc_pattern_fill_contents: {
+            cflags: ["-DSCUDO_PATTERN_FILL_CONTENTS"],
+        },
+        malloc_not_svelte: {
+            cflags: ["-DUSE_SCUDO"],
+        },
+    },
 }
 
 libc_scudo_product_variables = {
@@ -161,8 +157,15 @@ cc_defaults {
             ],
         },
         lib64: {
-            cflags: ["-DH_MALLOC_PREFIX"],
-            whole_static_libs: ["libhardened_malloc"],
+            cflags: [
+                "-DH_MALLOC_PREFIX",
+                "-DUSE_H_MALLOC",
+                "-DUSE_SCUDO",
+            ],
+            whole_static_libs: [
+                "libhardened_malloc",
+                "libscudo",
+            ],
         },
     },
 

@@ -71,9 +71,10 @@ setsid() all
 kill(pid_t, int) all
 tgkill(pid_t tgid, pid_t tid, int sig) all
 
-__brk:brk(void*) all
-execve(const char*, char* const*, char* const*)  all
-__ptrace:ptrace(int request, int pid, void* addr, void* data) all
+void* __brk:brk(void*) all
+int execve(const char*, char* const*, char* const*)  all
+int __execveat:execveat(int, const char*, char* const*, char* const*, int)  all
+int __ptrace:ptrace(int request, int pid, void* addr, void* data) all
 
 # <sys/resource.h>
 getrusage(int, struct rusage*)  all

@@ -392,7 +392,14 @@ static constexpr MallocDispatch __scudo_malloc_dispatch __attribute__((unused)) 
 static const MallocDispatch* native_allocator_dispatch;
 
 void InitNativeAllocatorDispatch(libc_globals* globals) {
-  const bool hardened_impl = getenv("DISABLE_HARDENED_MALLOC") == nullptr;
+  char path[256];
+  if (readlink("/proc/self/exe", path, sizeof(path)) == -1) {
+      path[0] = '\0';
+  }
+
+  const char camera_provider[] = "/apex/com.google.pixel.camera.hal/bin/hw/android.hardware.camera.provider@2.7-service-google";
+
+  const bool hardened_impl = getenv("DISABLE_HARDENED_MALLOC") == nullptr && strncmp(camera_provider, path, sizeof(camera_provider));
 
   const MallocDispatch* table = hardened_impl ?
     &__libc_malloc_default_dispatch :

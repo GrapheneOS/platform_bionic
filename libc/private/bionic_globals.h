@@ -66,6 +66,7 @@ struct libc_globals {
   // limit is enabled and some other hook is enabled at the same time.
   _Atomic(const MallocDispatch*) default_dispatch_table;
   MallocDispatch malloc_dispatch_table;
+  int prog_id;
 };
 
 struct memtag_dynamic_entries_t {

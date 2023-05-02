@@ -213,6 +213,7 @@ long strtol_l(const char* _Nonnull __s, char* _Nullable * _Nullable __end_ptr, i
 int get_prog_id();
 #define is_prog(id) (get_prog_id() == id)
 
+#define PROG_PIXEL_CAMERA_PROVIDER_SERVICE 1
 #define PROG_XTRA_DAEMON 2
 
 const char* _Nullable hook_translate_hostname(const char* _Nonnull hostname);

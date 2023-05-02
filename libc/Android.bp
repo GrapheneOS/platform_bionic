@@ -1140,6 +1140,7 @@ cc_library_static {
         "bionic/grp_pwd.cpp",
         "bionic/grp_pwd_file.cpp",
         "bionic/heap_zero_init.cpp",
+        "bionic/hooks.c",
         "bionic/iconv.cpp",
         "bionic/icu_wrappers.cpp",
         "bionic/ifaddrs.cpp",

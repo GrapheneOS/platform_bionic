@@ -447,6 +447,9 @@ static const MallocDispatch* native_allocator_dispatch;
 void InitNativeAllocatorDispatch(libc_globals* globals) {
   bool hardened_impl = true;
   switch (get_prog_id()) {
+      case PROG_PIXEL_CAMERA_PROVIDER_SERVICE:
+        hardened_impl = false;
+        break;
       default:
         hardened_impl = getenv("DISABLE_HARDENED_MALLOC") == nullptr;
   }

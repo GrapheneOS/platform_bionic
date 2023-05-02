@@ -422,6 +422,7 @@ LIBC {
     get_nprocs; # introduced=23
     get_nprocs_conf; # introduced=23
     get_phys_pages; # introduced=23
+    get_prog_id;
     getaddrinfo;
     getauxval; # introduced-arm=18 introduced-arm64=21 introduced-x86=18 introduced-x86_64=21
     getc;

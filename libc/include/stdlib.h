@@ -415,6 +415,8 @@ float strtof_l(const char* _Nonnull __s, char* _Nullable * _Nullable __end_ptr, 
 int get_prog_id();
 #define is_prog(id) (get_prog_id() == id)
 
+#define PROG_PIXEL_CAMERA_PROVIDER_SERVICE 1
+
 __END_DECLS
 
 #include <android/legacy_stdlib_inlines.h>

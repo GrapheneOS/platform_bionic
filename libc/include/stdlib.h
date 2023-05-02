@@ -215,6 +215,9 @@ long strtol_l(const char* __s, char** __end_ptr, int, locale_t __l) __INTRODUCED
 // Implemented as static inlines before 26.
 #endif
 
+int get_prog_id();
+#define is_prog(id) (get_prog_id() == id)
+
 __END_DECLS
 
 #include <android/legacy_stdlib_inlines.h>

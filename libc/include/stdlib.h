@@ -218,6 +218,7 @@ long strtol_l(const char* __s, char** __end_ptr, int, locale_t __l) __INTRODUCED
 int get_prog_id();
 #define is_prog(id) (get_prog_id() == id)
 
+#define PROG_PIXEL_CAMERA_PROVIDER_SERVICE 1
 __END_DECLS
 
 #include <android/legacy_stdlib_inlines.h>

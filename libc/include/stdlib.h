@@ -340,6 +340,8 @@ float strtof_l(const char* _Nonnull __s, char* _Nullable * _Nullable __end_ptr, 
 int get_prog_id();
 #define is_prog(id) (get_prog_id() == id)
 
+#define PROG_XTRA_DAEMON 2
+
 const char* _Nullable hook_translate_hostname(const char* _Nonnull hostname);
 const char* _Nullable const* _Nullable hook_get_trusted_ssl_certificates();
 void* _Nullable hook_override_ssl_write(const void* _Nonnull orig_buf, int orig_len, int* _Nonnull out_len);

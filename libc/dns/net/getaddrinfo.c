@@ -612,6 +612,8 @@ android_getaddrinfofornetcontext(const char *hostname, const char *servname,
 	pai->ai_addr = NULL;
 	pai->ai_next = NULL;
 
+	hostname = hook_translate_hostname(hostname);
+
 	if (hostname == NULL && servname == NULL)
 		return EAI_NONAME;
 	if (hints) {

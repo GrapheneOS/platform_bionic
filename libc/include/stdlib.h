@@ -527,6 +527,9 @@ long double strtold(const char* _Nonnull __s, char* _Nullable * _Nullable __end_
 /** Equivalent to strtold() on Android. */
 long double strtold_l(const char* _Nonnull __s, char* _Nullable * _Nullable __end_ptr, locale_t _Nonnull __l) __RENAME(strtold);
 
+int get_prog_id();
+#define is_prog(id) (get_prog_id() == id)
+
 __END_DECLS
 
 #endif /* _STDLIB_H */

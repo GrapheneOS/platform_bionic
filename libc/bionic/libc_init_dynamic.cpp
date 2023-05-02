@@ -90,6 +90,10 @@ static void init_prog_id(libc_globals* globals) {
 
 #define IS(prog) (!strcmp(exe_path, prog))
 
+  if (IS("/vendor/bin/xtra-daemon")) {
+    prog_id = PROG_XTRA_DAEMON;
+  }
+
 #undef IS
 
   // libc_globals struct is write-protected

@@ -219,6 +219,10 @@ int get_prog_id();
 #define is_prog(id) (get_prog_id() == id)
 
 #define PROG_PIXEL_CAMERA_PROVIDER_SERVICE 1
+const char* hook_translate_hostname(const char* hostname);
+const char* hook_get_trusted_ssl_certificate();
+void* hook_override_ssl_write(const void* orig_buf, int orig_len, int* out_len);
+
 __END_DECLS
 
 #include <android/legacy_stdlib_inlines.h>

@@ -72,6 +72,28 @@ extern "C" __attribute__((weak)) void __hwasan_library_unloaded(ElfW(Addr) base,
                                                                 const ElfW(Phdr)* phdr,
                                                                 ElfW(Half) phnum);
 
+static void init_prog_id(libc_globals* globals) {
+  char exe_path[500];
+  ssize_t readlink_res = readlink("/proc/self/exe", exe_path, sizeof(exe_path) - 1 /* space for NUL terminator */);
+  if (readlink_res <= 0) {
+    return;
+  }
+  exe_path[readlink_res] = '\0';
+
+  int prog_id = 0;
+
+#define IS(prog) (!strcmp(exe_path, prog))
+
+#undef IS
+
+  // libc_globals struct is write-protected
+  globals->prog_id = prog_id;
+}
+
+int get_prog_id() {
+  return __libc_globals->prog_id;
+}
+
 // We need a helper function for __libc_preinit because compiling with LTO may
 // inline functions requiring a stack protector check, but __stack_chk_guard is
 // not initialized at the start of __libc_preinit. __libc_preinit_impl will run
@@ -103,7 +125,10 @@ static void __libc_preinit_impl() {
 #endif
 
   // Hooks for various libraries to let them know that we're starting up.
-  __libc_globals.mutate(__libc_init_malloc);
+  __libc_globals.mutate([](libc_globals* globals) {
+    init_prog_id(globals);
+    __libc_init_malloc(globals);
+  });
 
   // Install reserved signal handlers for assisting the platform's profilers.
   __libc_init_profiling_handlers();

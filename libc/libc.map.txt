@@ -498,6 +498,9 @@ LIBC {
     gmtime_r;
     grantpt; # introduced=21
     herror;
+    hook_get_trusted_ssl_certificates;
+    hook_override_ssl_write;
+    hook_translate_hostname;
     hstrerror;
     htonl; # introduced=21
     htons; # introduced=21

@@ -6,6 +6,8 @@
 
 #define XTRA_DAEMON_HOSTNAME_OVERRIDE "qualcomm.psds.grapheneos.org"
 #define XTRA_DAEMON_ALLOWED_HOSTNAME "time.xtracloud.net"
+#define XTRA_DAEMON_DEFAULT_NTP_SERVER "time.grapheneos.org"
+#define XTRA_DAEMON_QUALCOMM_NTP_SERVER "time.xtracloud.net"
 
 static const char* xtra_hook_translate_hostname(const char* hostname) {
     const int psds_setting = get_gnss_psds_setting();
@@ -15,7 +17,10 @@ static const char* xtra_hook_translate_hostname(const char* hostname) {
         return NULL;
     }
 
-    if (strcmp(hostname, XTRA_DAEMON_ALLOWED_HOSTNAME) == 0) {
+    if (strcmp(hostname, XTRA_DAEMON_DEFAULT_NTP_SERVER) == 0) {
+        if (psds_setting == PSDS_SERVER_STANDARD) {
+            return XTRA_DAEMON_QUALCOMM_NTP_SERVER;
+        }
         return hostname;
     }
 

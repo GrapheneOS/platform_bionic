@@ -23,7 +23,7 @@ const char* const* hook_get_trusted_ssl_certificates() {
     // trusted certificates
     switch (get_prog_id()) {
         case PROG_XTRA_DAEMON:
-            return xtra_hook_get_trusted_ssl_certificate();
+            return xtra_hook_get_trusted_ssl_certificates();
         default:
             return NULL;
     }

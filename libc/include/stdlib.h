@@ -222,7 +222,7 @@ int get_prog_id();
 #define PROG_XTRA_DAEMON 2
 
 const char* hook_translate_hostname(const char* hostname);
-const char* hook_get_trusted_ssl_certificate();
+const char* const* hook_get_trusted_ssl_certificates();
 void* hook_override_ssl_write(const void* orig_buf, int orig_len, int* out_len);
 
 __END_DECLS

@@ -18,7 +18,9 @@ const char* hook_translate_hostname(const char* hostname) {
 }
 
 // X509_verify_cert()
-const char* hook_get_trusted_ssl_certificate() {
+const char* const* hook_get_trusted_ssl_certificates() {
+    // return NULL or NULL-terminated array of base64-encoded SHA-256 sums of public keys of
+    // trusted certificates
     switch (get_prog_id()) {
         case PROG_XTRA_DAEMON:
             return xtra_hook_get_trusted_ssl_certificate();

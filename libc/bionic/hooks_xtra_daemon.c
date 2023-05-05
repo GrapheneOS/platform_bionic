@@ -5,7 +5,6 @@
 #include "gnss_psds_setting.c"
 
 #define XTRA_DAEMON_HOSTNAME_OVERRIDE "qualcomm.psds.grapheneos.org"
-#define XTRA_DAEMON_ALLOWED_HOSTNAME "time.xtracloud.net"
 #define XTRA_DAEMON_DEFAULT_NTP_SERVER "time.grapheneos.org"
 #define XTRA_DAEMON_QUALCOMM_NTP_SERVER "time.xtracloud.net"
 
@@ -84,15 +83,11 @@ static void* xtra_hook_override_ssl_write(const void* orig_buf, int orig_len, in
             const char host_start[] = "Host:";
             if (line_len > strlen(host_start)) {
                 if (memcmp(line_start, host_start, strlen(host_start)) == 0) {
-                    if (memmem(line_start, line_len, XTRA_DAEMON_ALLOWED_HOSTNAME,
-                               strlen(XTRA_DAEMON_ALLOWED_HOSTNAME)) == NULL)
-                    {
-                        const char host_line[] = "Host: " XTRA_DAEMON_HOSTNAME_OVERRIDE "\r\n";
-                        const size_t l = strlen(host_line);
-                        memcpy(buf + buf_off, host_line, l);
-                        buf_off += l;
-                        continue;
-                    }
+                    const char host_line[] = "Host: " XTRA_DAEMON_HOSTNAME_OVERRIDE "\r\n";
+                    const size_t l = strlen(host_line);
+                    memcpy(buf + buf_off, host_line, l);
+                    buf_off += l;
+                    continue;
                 }
             }
         }

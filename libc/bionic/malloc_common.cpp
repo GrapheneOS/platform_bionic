@@ -400,11 +400,7 @@ static constexpr MallocDispatch __scudo_malloc_dispatch __attribute__((unused)) 
 static const MallocDispatch* native_allocator_dispatch;
 
 void InitNativeAllocatorDispatch(libc_globals* globals) {
-  bool hardened_impl = true;
-  switch (get_prog_id()) {
-      default:
-        hardened_impl = getenv("DISABLE_HARDENED_MALLOC") == nullptr;
-  }
+  const bool hardened_impl = getenv("DISABLE_HARDENED_MALLOC") == nullptr;
 
   const MallocDispatch* table = hardened_impl ?
     &__libc_malloc_default_dispatch :

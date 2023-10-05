@@ -31,6 +31,8 @@ import android.annotation.Nullable;
 import android.annotation.RequiresPermission;
 import android.annotation.SuppressLint;
 import android.annotation.SystemApi;
+import android.app.compat.gms.GmsCompat;
+import android.app.compat.gms.GmsModuleHooks;
 import android.content.ContentResolver;
 import android.database.ContentObserver;
 import android.net.Uri;
@@ -1134,6 +1136,10 @@ public final class DeviceConfig {
     @SystemApi
     @Nullable
     public static String getProperty(@NonNull String namespace, @NonNull String name) {
+        if (GmsCompat.isEnabled()) {
+            return GmsModuleHooks.deviceConfigGetProperty(namespace, name);
+        }
+
         // Fetch all properties for the namespace at once and cache them in the local process, so we
         // incur the cost of the IPC less often. Lookups happen much more frequently than updates,
         // and we want to optimize the former.
@@ -1260,6 +1266,14 @@ public final class DeviceConfig {
     @SystemApi
     public static boolean getBoolean(@NonNull String namespace, @NonNull String name,
             boolean defaultValue) {
+        if (GmsCompat.isEnabled()) {
+            if ("gservices".equals(namespace) && "enable_gmscore_gservices_storage".equals(name)) {
+                // Not overriden anywhere, but checked very often. Calls to GmsCompatApp are not cached,
+                // avoid IPC spam.
+                return defaultValue;
+            }
+        }
+
         String value = getProperty(namespace, name);
         return value != null ? Boolean.parseBoolean(value) : defaultValue;
     }
@@ -1440,6 +1454,11 @@ public final class DeviceConfig {
     @RequiresPermission(anyOf = {WRITE_DEVICE_CONFIG, WRITE_ALLOWLISTED_DEVICE_CONFIG})
     public static boolean setProperty(@NonNull String namespace, @NonNull String name,
             @Nullable String value, boolean makeDefault) {
+        if (GmsCompat.isEnabled()) {
+            // makeDefault is ignored: defaults are unsupported by GmsCompat and are unused by GMS
+            return GmsModuleHooks.deviceConfigSetProperty(namespace, name, value);
+        }
+
         return sDataStore.setProperty(namespace, name, value, makeDefault);
     }
 
@@ -1461,6 +1480,11 @@ public final class DeviceConfig {
     @SystemApi
     @RequiresPermission(anyOf = {WRITE_DEVICE_CONFIG, WRITE_ALLOWLISTED_DEVICE_CONFIG})
     public static boolean setProperties(@NonNull Properties properties) throws BadConfigException {
+        if (GmsCompat.isEnabled()) {
+            // makeDefault is ignored: defaults are unsupported by GmsCompat and are unused by GMS
+            return GmsModuleHooks.deviceConfigSetProperties(properties);
+        }
+
         return sDataStore.setProperties(properties);
     }
 
@@ -1508,6 +1532,10 @@ public final class DeviceConfig {
     @RavenwoodThrow
     @RequiresPermission(anyOf = {WRITE_DEVICE_CONFIG, WRITE_ALLOWLISTED_DEVICE_CONFIG})
     public static void resetToDefaults(int resetMode, @Nullable String namespace) {
+        if (GmsCompat.isEnabled()) {
+            throw new UnsupportedOperationException();
+        }
+
         sDataStore.resetToDefaults(resetMode, namespace);
     }
 

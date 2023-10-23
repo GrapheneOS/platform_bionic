@@ -35,6 +35,8 @@
 #include <sanitizer/hwasan_interface.h>
 #include <sys/auxv.h>
 
+extern "C" void h_malloc_disable_memory_tagging();
+
 extern "C" void scudo_malloc_disable_memory_tagging();
 extern "C" void scudo_malloc_set_track_allocation_stacks(int);
 
@@ -65,19 +67,26 @@ void SetDefaultHeapTaggingLevel() {
     };
   });
 
-#if defined(USE_SCUDO)
+
   switch (heap_tagging_level) {
     case M_HEAP_TAGGING_LEVEL_TBI:
     case M_HEAP_TAGGING_LEVEL_NONE:
+#if defined(USE_SCUDO)
       scudo_malloc_disable_memory_tagging();
+#endif
+#if defined(USE_H_MALLOC)
+      h_malloc_disable_memory_tagging();
+#endif
       break;
     case M_HEAP_TAGGING_LEVEL_SYNC:
+#if defined(USE_SCUDO)
       scudo_malloc_set_track_allocation_stacks(1);
+#endif
       break;
     default:
       break;
   }
-#endif  // USE_SCUDO
+
 #endif  // aarch64
 }
 
@@ -125,6 +134,9 @@ bool SetHeapTaggingLevel(HeapTaggingLevel tag_level) {
       }
 #if defined(USE_SCUDO)
       scudo_malloc_disable_memory_tagging();
+#endif
+#if defined(USE_H_MALLOC)
+      h_malloc_disable_memory_tagging();
 #endif
       break;
     case M_HEAP_TAGGING_LEVEL_TBI:

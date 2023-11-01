@@ -66,14 +66,6 @@ extern "C" bool android_mallopt(int opcode, void* arg, size_t arg_size) {
     *reinterpret_cast<bool*>(arg) = atomic_load(&__libc_globals->decay_time_enabled);
     return true;
   }
-  if (opcode == M_INITIALIZE_GWP_ASAN) {
-    if (arg == nullptr || arg_size != sizeof(android_mallopt_gwp_asan_options_t)) {
-      errno = EINVAL;
-      return false;
-    }
-
-    return EnableGwpAsan(*reinterpret_cast<android_mallopt_gwp_asan_options_t*>(arg));
-  }
   if (opcode == M_MEMTAG_STACK_IS_ON) {
     if (arg == nullptr || arg_size != sizeof(bool)) {
       errno = EINVAL;

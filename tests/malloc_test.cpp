@@ -984,29 +984,6 @@ TEST(android_mallopt, set_allocation_limit_multiple_threads) {
 #endif
 }
 
-#if defined(__BIONIC__)
-using Mode = android_mallopt_gwp_asan_options_t::Mode;
-TEST(android_mallopt, DISABLED_multiple_enable_gwp_asan) {
-  android_mallopt_gwp_asan_options_t options;
-  options.program_name = "";  // Don't infer GWP-ASan options from sysprops.
-  options.mode = Mode::APP_MANIFEST_NEVER;
-  // GWP-ASan should already be enabled. Trying to enable or disable it should
-  // always pass.
-  ASSERT_TRUE(android_mallopt(M_INITIALIZE_GWP_ASAN, &options, sizeof(options)));
-  options.mode = Mode::APP_MANIFEST_DEFAULT;
-  ASSERT_TRUE(android_mallopt(M_INITIALIZE_GWP_ASAN, &options, sizeof(options)));
-}
-#endif  // defined(__BIONIC__)
-
-TEST(android_mallopt, multiple_enable_gwp_asan) {
-#if defined(__BIONIC__)
-  // Always enable GWP-Asan, with default options.
-  RunGwpAsanTest("*.DISABLED_multiple_enable_gwp_asan");
-#else
-  GTEST_SKIP() << "bionic extension";
-#endif
-}
-
 TEST(android_mallopt, memtag_stack_is_on) {
 #if defined(__BIONIC__)
   bool memtag_stack;

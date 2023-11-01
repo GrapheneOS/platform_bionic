@@ -383,8 +383,6 @@ static void MallocInitImpl(libc_globals* globals) {
   char prop[PROP_VALUE_MAX];
   char* options = prop;
 
-  MaybeInitGwpAsanFromLibc(globals);
-
 #if defined(USE_SCUDO) && !__has_feature(hwaddress_sanitizer)
   __libc_shared_globals()->scudo_stack_depot = __scudo_get_stack_depot_addr();
   __libc_shared_globals()->scudo_region_info = __scudo_get_region_info_addr();
@@ -532,14 +530,6 @@ extern "C" bool android_mallopt(int opcode, void* arg, size_t arg_size) {
       return false;
     }
     return FreeMallocLeakInfo(reinterpret_cast<android_mallopt_leak_info_t*>(arg));
-  }
-  if (opcode == M_INITIALIZE_GWP_ASAN) {
-    if (arg == nullptr || arg_size != sizeof(android_mallopt_gwp_asan_options_t)) {
-      errno = EINVAL;
-      return false;
-    }
-
-    return EnableGwpAsan(*reinterpret_cast<android_mallopt_gwp_asan_options_t*>(arg));
   }
   if (opcode == M_MEMTAG_STACK_IS_ON) {
     if (arg == nullptr || arg_size != sizeof(bool)) {

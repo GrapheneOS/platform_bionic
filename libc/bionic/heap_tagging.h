@@ -40,6 +40,8 @@ void SetDefaultHeapTaggingLevel();
 // useful for RAII on this lock.
 extern pthread_mutex_t g_heap_tagging_lock;
 
+bool BlockHeapTaggingLevelDowngrade();
+
 // This function can be called in a multithreaded context, and thus should
 // only be called when holding the `g_heap_tagging_lock`.
 bool SetHeapTaggingLevel(HeapTaggingLevel level);

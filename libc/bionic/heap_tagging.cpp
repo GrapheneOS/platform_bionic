@@ -107,10 +107,29 @@ static bool set_tcf_on_all_threads(int tcf) {
 
 pthread_mutex_t g_heap_tagging_lock = PTHREAD_MUTEX_INITIALIZER;
 
+static bool block_heap_tagging_level_downgrade;
+
+// Requires `g_heap_tagging_lock` to be held.
+bool BlockHeapTaggingLevelDowngrade() {
+  if (block_heap_tagging_level_downgrade) {
+    return false;
+  }
+  block_heap_tagging_level_downgrade = true;
+  return true;
+}
+
 // Requires `g_heap_tagging_lock` to be held.
 bool SetHeapTaggingLevel(HeapTaggingLevel tag_level) {
   if (tag_level == heap_tagging_level) {
     return true;
+  }
+
+  if (block_heap_tagging_level_downgrade) {
+    // allow switching between SYNC and ASYNC, but don't allow disabling memory tagging
+    if (tag_level < heap_tagging_level && tag_level != M_HEAP_TAGGING_LEVEL_ASYNC) {
+      error_log("SetHeapTaggingLevel: blocked downgrade of tag level from %i to %i", heap_tagging_level, tag_level);
+      return false;
+    }
   }
 
   switch (tag_level) {

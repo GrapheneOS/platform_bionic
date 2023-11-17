@@ -303,6 +303,7 @@ int malloc_info(int __must_be_zero, FILE* _Nonnull __fp) __INTRODUCED_IN(23);
  */
 #define M_BIONIC_SET_HEAP_TAGGING_LEVEL (-204)
 
+#define M_BIONIC_BLOCK_HEAP_TAGGING_LEVEL_DOWNGRADE (-1000)
 /**
  * Constants for use with the M_BIONIC_SET_HEAP_TAGGING_LEVEL mallopt() option.
  */

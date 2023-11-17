@@ -107,6 +107,12 @@ extern "C" int mallopt(int param, int value) {
     ScopedPthreadMutexLocker locker(&g_heap_tagging_lock);
     return SetHeapTaggingLevel(static_cast<HeapTaggingLevel>(value));
   }
+
+  if (param == M_BIONIC_BLOCK_HEAP_TAGGING_LEVEL_DOWNGRADE) {
+    ScopedPthreadMutexLocker locker(&g_heap_tagging_lock);
+    return BlockHeapTaggingLevelDowngrade();
+  }
+
   if (param == M_BIONIC_ZERO_INIT) {
     return SetHeapZeroInitialize(value);
   }

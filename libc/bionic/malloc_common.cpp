@@ -113,6 +113,22 @@ extern "C" int mallopt(int param, int value) {
     return BlockHeapTaggingLevelDowngrade();
   }
 
+  if (param == M_BIONIC_SET_IGNORE_NEW_SIGSEGV_HANDLERS) {
+    if (__libc_globals->ignore_new_segv_signal_handlers) {
+      return 0;
+    }
+
+    __libc_globals.mutate([](libc_globals* globals) {
+      globals->ignore_new_segv_signal_handlers = true;
+    });
+
+    return 1;
+  }
+
+  if (param == M_BIONIC_SHOULD_IGNORE_NEW_SIGSEGV_HANDLERS) {
+    return __libc_globals->ignore_new_segv_signal_handlers;
+  }
+
   if (param == M_BIONIC_ZERO_INIT) {
     return SetHeapZeroInitialize(value);
   }

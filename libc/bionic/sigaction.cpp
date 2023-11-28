@@ -30,7 +30,6 @@
 #include <string.h>
 
 #include <platform/bionic/reserved_signals.h>
-#include "private/bionic_globals.h"
 
 extern "C" void __restore_rt(void);
 extern "C" void __restore(void);
@@ -41,11 +40,6 @@ extern "C" int __rt_sigaction(int, const struct __kernel_sigaction*, struct __ke
 
 int sigaction(int signal, const struct sigaction* bionic_new_action, struct sigaction* bionic_old_action) {
   __kernel_sigaction kernel_new_action;
-
-  if (signal == SIGSEGV && __libc_globals->ignore_new_segv_signal_handlers) {
-    bionic_new_action = nullptr;
-  }
-
   if (bionic_new_action != nullptr) {
     kernel_new_action.sa_flags = bionic_new_action->sa_flags;
     kernel_new_action.sa_handler = bionic_new_action->sa_handler;

@@ -65,7 +65,6 @@ struct libc_globals {
   _Atomic(const MallocDispatch*) default_dispatch_table;
   MallocDispatch malloc_dispatch_table;
   int prog_id;
-  bool ignore_new_segv_signal_handlers;
 };
 
 __LIBC_HIDDEN__ extern WriteProtected<libc_globals> __libc_globals;

@@ -66,6 +66,7 @@ struct libc_globals {
   _Atomic(const MallocDispatch*) default_dispatch_table;
   MallocDispatch malloc_dispatch_table;
   int prog_id;
+  bool is_sigchainlib_mte_sigsegv_interception_enabled;
 };
 
 struct memtag_dynamic_entries_t {

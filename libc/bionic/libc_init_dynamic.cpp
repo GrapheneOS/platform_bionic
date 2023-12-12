@@ -96,6 +96,10 @@ static void init_prog_id(libc_globals* globals) {
   else if (IS("/apex/com.google.pixel.camera.hal/bin/hw/android.hardware.camera.provider@2.7-service-google")) {
     prog_id = PROG_PIXEL_CAMERA_PROVIDER_SERVICE;
   }
+  else if (IS("/system/bin/surfaceflinger")) {
+    prog_id = PROG_SURFACEFLINGER;
+  }
+
 #undef IS
 
   // libc_globals struct is write-protected

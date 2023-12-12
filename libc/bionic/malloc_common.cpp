@@ -448,6 +448,7 @@ void InitNativeAllocatorDispatch(libc_globals* globals) {
   bool hardened_impl = true;
   switch (get_prog_id()) {
       case PROG_PIXEL_CAMERA_PROVIDER_SERVICE:
+      case PROG_SURFACEFLINGER:
         hardened_impl = false;
         break;
       default:

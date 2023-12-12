@@ -374,6 +374,7 @@ int get_prog_id();
 #define is_prog(id) (get_prog_id() == id)
 
 #define PROG_PIXEL_CAMERA_PROVIDER_SERVICE 1
+#define PROG_SURFACEFLINGER 2
 
 __END_DECLS
 

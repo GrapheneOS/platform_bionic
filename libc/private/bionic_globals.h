@@ -67,6 +67,7 @@ struct libc_globals {
   MallocDispatch malloc_dispatch_table;
   int prog_id;
   bool is_sigchainlib_mte_sigsegv_interception_enabled;
+  struct sigaction saved_sigabrt_handler;
 };
 
 struct memtag_dynamic_entries_t {

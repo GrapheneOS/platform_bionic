@@ -129,6 +129,14 @@ extern "C" int mallopt(int param, int value) {
     return __libc_globals->is_sigchainlib_mte_sigsegv_interception_enabled;
   }
 
+  if (param == M_BIONIC_RESTORE_DEFAULT_SIGABRT_HANDLER) {
+    if (__libc_globals->saved_sigabrt_handler.sa_sigaction != nullptr) {
+      sigaction(SIGABRT, &__libc_globals->saved_sigabrt_handler, nullptr);
+      return 1;
+    }
+    return 0;
+  }
+
   if (param == M_BIONIC_ZERO_INIT) {
     return SetHeapZeroInitialize(value);
   }

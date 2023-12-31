@@ -138,6 +138,9 @@ static void __libc_preinit_impl() {
   __libc_globals.mutate([](libc_globals* globals) {
     init_prog_id(globals);
     __libc_init_malloc(globals);
+
+    // save the default SIGABRT handler to support restoring it with mallopt(M_BIONIC_RESTORE_DEFAULT_SIGABRT_HANDLER)
+    sigaction(SIGABRT, nullptr, &globals->saved_sigabrt_handler);
   });
 
   // Install reserved signal handlers for assisting the platform's profilers.

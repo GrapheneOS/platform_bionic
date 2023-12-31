@@ -66,6 +66,7 @@ struct libc_globals {
   MallocDispatch malloc_dispatch_table;
   int prog_id;
   bool is_sigchainlib_mte_sigsegv_interception_enabled;
+  struct sigaction saved_sigabrt_handler;
 };
 
 __LIBC_HIDDEN__ extern WriteProtected<libc_globals> __libc_globals;

@@ -449,7 +449,6 @@ void InitNativeAllocatorDispatch(libc_globals* globals) {
   switch (get_prog_id()) {
       case PROG_PIXEL_CAMERA_PROVIDER_SERVICE:
       case PROG_SURFACEFLINGER:
-      case PROG_BLUETOOTH_HAL_BROADCOM:
         hardened_impl = false;
         break;
       default:

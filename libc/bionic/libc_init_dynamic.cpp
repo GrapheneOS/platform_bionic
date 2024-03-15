@@ -93,9 +93,7 @@ static void init_prog_id(libc_globals* globals) {
   else if (IS("/system/bin/surfaceflinger")) {
     prog_id = PROG_SURFACEFLINGER;
   }
-  else if (IS("/vendor/bin/hw/android.hardware.bluetooth-service.bcmbtlinux")) {
-    prog_id = PROG_BLUETOOTH_HAL_BROADCOM;
-  }
+
 #undef IS
 
   // libc_globals struct is write-protected

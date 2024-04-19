@@ -36,7 +36,7 @@
 
 #include <async_safe/CHECK.h>
 
-static bool get_property_value(const char* property_name, char* dest, size_t dest_size) {
+bool get_property_value(const char* property_name, char* dest, size_t dest_size) {
   CHECK(property_name);
   CHECK(dest);
   CHECK(dest_size != 0);

@@ -34,7 +34,7 @@
 #include <string.h>
 #include "sys/system_properties.h"
 
-static bool get_property_value(const char* property_name, char* dest, size_t dest_size) {
+bool get_property_value(const char* property_name, char* dest, size_t dest_size) {
   assert(property_name && dest && dest_size != 0);
   const prop_info* prop = __system_property_find(property_name);
   if (!prop) return false;

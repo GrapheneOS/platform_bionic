@@ -210,6 +210,11 @@ static bool starts_with(const char* s, const char* prefix) {
     return strncmp(s, prefix, strlen(prefix)) == 0;
 }
 
+static bool is_debuggable_build() {
+  char pv[8];
+  return get_property_value("ro.debuggable", pv, sizeof(pv)) && strcmp(pv, "1") == 0;
+}
+
 // Returns true if there's an environment setting (either sysprop or env var)
 // that should overwrite the ELF note, and places the equivalent heap tagging
 // level into *level.
@@ -222,12 +227,12 @@ static bool get_environment_memtag_setting(HeapTaggingLevel* level) {
   const char* progname = __libc_shared_globals()->init_progname;
   if (progname == nullptr) return false;
 
-  bool is_vendor_prog = starts_with(progname, "/vendor/") || starts_with(progname, "/apex/com.google.");
-  char prop_value[8];
-  if (is_vendor_prog && get_property_value("persist.arm64.memtag.vendor", prop_value, sizeof(prop_value))) {
-    if (strcmp("1", prop_value) == 0) {
-      *level = M_HEAP_TAGGING_LEVEL_ASYNC;
-      return true;
+  const bool is_vendor_prog = starts_with(progname, "/vendor/") || starts_with(progname, "/apex/com.google.");
+  const bool is_debug_build = is_debuggable_build();
+  if (is_vendor_prog) {
+    *level = M_HEAP_TAGGING_LEVEL_ASYNC;
+    if (!is_debug_build) {
+        return true;
     }
   }
 
@@ -244,7 +249,7 @@ static bool get_environment_memtag_setting(HeapTaggingLevel* level) {
 
   if (!get_config_from_env_or_sysprops("MEMTAG_OPTIONS", sys_prop_names, arraysize(sys_prop_names),
                                        options_str, sizeof(options_str))) {
-    return false;
+    return is_vendor_prog;
   }
 
   if (strcmp("sync", options_str) == 0) {

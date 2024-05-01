@@ -236,6 +236,11 @@ static bool get_environment_memtag_setting(HeapTaggingLevel* level) {
     }
   }
 
+  if (!is_debug_build) {
+      // ignore heap memory tagging setting overrides on user builds
+      return false;
+  }
+
   const char* basename = __gnu_basename(progname);
 
   char options_str[PROP_VALUE_MAX];

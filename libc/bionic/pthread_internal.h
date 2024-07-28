@@ -247,8 +247,13 @@ __LIBC_HIDDEN__ void pthread_key_clean_all(void);
 // Address space is precious on LP32, so use the minimum unit: one page.
 // On LP64, we could use more but there's no obvious advantage to doing
 // so, and the various media processes use RLIMIT_AS as a way to limit
-// the amount of allocation they'll do.
+// the amount of allocation they'll do. AArch64 requires 64kiB to handle
+// the minimum stack probe size of 64kiB.
+#if __aarch64__
+#define PTHREAD_GUARD_SIZE 65536
+#else
 #define PTHREAD_GUARD_SIZE max_android_page_size()
+#endif
 
 // SIGSTKSZ (8KiB) is not big enough.
 // An snprintf to a stack buffer of size PATH_MAX consumes ~7KiB of stack.

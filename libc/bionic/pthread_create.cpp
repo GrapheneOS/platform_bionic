@@ -290,6 +290,10 @@ static int __allocate_thread(pthread_attr_t* attr, bionic_tcb** tcbp, void** chi
     attr->guard_size = __BIONIC_ALIGN(attr->guard_size, page_size());
     if (attr->guard_size < unaligned_guard_size) return EAGAIN;
 
+#ifdef __aarch64__
+    if (attr->guard_size < 65536) attr->guard_size = 65536;
+#endif
+
     mapping = __allocate_thread_mapping(attr->stack_size, attr->guard_size);
     if (mapping.mmap_base == nullptr) return EAGAIN;
 

@@ -452,7 +452,11 @@ void InitNativeAllocatorDispatch(libc_globals* globals) {
         hardened_impl = false;
         break;
       default:
-        hardened_impl = getenv("DISABLE_HARDENED_MALLOC") == nullptr;
+        if (globals->flags & GLOBAL_FLAG_DISABLE_HARDENED_MALLOC) {
+            hardened_impl = false;
+        } else {
+            hardened_impl = getenv("DISABLE_HARDENED_MALLOC") == nullptr;
+        }
   }
 
   const MallocDispatch* table = hardened_impl ?

@@ -86,6 +86,7 @@ static void init_prog_id(libc_globals* globals) {
   exe_path[readlink_res] = '\0';
 
   int prog_id = 0;
+  int flags = 0;
 
 #define IS(prog) (!strcmp(exe_path, prog))
 
@@ -99,6 +100,7 @@ static void init_prog_id(libc_globals* globals) {
 #undef IS
 
   // libc_globals struct is write-protected
+  globals->flags = flags;
   globals->prog_id = prog_id;
 }
 

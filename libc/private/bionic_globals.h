@@ -43,6 +43,8 @@
 #include "private/bionic_malloc_dispatch.h"
 #include "private/bionic_vdso.h"
 
+#define GLOBAL_FLAG_DISABLE_HARDENED_MALLOC 1
+
 struct libc_globals {
   vdso_entry vdso[VDSO_END];
   long setjmp_cookie;
@@ -68,6 +70,7 @@ struct libc_globals {
   int prog_id;
   bool is_sigchainlib_mte_sigsegv_interception_enabled;
   struct sigaction saved_sigabrt_handler;
+  int flags;
 };
 
 struct memtag_dynamic_entries_t {

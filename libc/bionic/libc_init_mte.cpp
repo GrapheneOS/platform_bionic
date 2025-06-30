@@ -132,8 +132,18 @@ static bool get_environment_memtag_setting(HeapTaggingLevel* level) {
   const bool is_vendor_prog = starts_with(progname, "/vendor/") || starts_with(progname, "/apex/com.google.");
   const bool is_debug_build = is_debuggable_build();
   if (is_vendor_prog) {
+    char device_name[PROP_VALUE_MAX];
+    get_property_value("ro.product.name", device_name, sizeof(device_name));
     bool apply_override =
         strcmp(progname, "/apex/com.google.pixel.camera.hal/bin/hw/android.hardware.camera.provider@2.7-service-google") != 0
+        && (
+            (
+                 strcmp(device_name, "tokay") != 0
+                 && strcmp(device_name, "komodo") != 0
+                 && strcmp(device_name, "comet") != 0
+                 && strcmp(device_name, "caiman") != 0
+            ) || strcmp(progname, "/vendor/bin/shared_modem_platform") != 0
+        )
     ;
     if (apply_override) {
         *level = M_HEAP_TAGGING_LEVEL_ASYNC;

@@ -115,6 +115,16 @@ static void init_prog_id(libc_globals* globals) {
   else if (IS("/vendor/bin/hw/android.hardware.audio.service")) {
     // needed for Pixel Tablet as of Android 15, see https://github.com/GrapheneOS/os-issue-tracker/issues/4306
     flags = GLOBAL_FLAG_DISABLE_HARDENED_MALLOC;
+  } else if (IS("/vendor/bin/shared_modem_platform")) {
+    char device_name[PROP_VALUE_MAX];
+    get_property_value("ro.product.name", device_name, sizeof(device_name));
+    if (strcmp(device_name, "tokay") == 0
+        || strcmp(device_name, "komodo") == 0
+        || strcmp(device_name, "comet") == 0
+        || strcmp(device_name, "caiman") == 0
+    ) {
+      flags = GLOBAL_FLAG_DISABLE_HARDENED_MALLOC;
+    }
   }
 
 #undef IS

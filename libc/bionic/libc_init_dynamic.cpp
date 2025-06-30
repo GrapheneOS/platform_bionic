@@ -47,6 +47,7 @@
 #include "bionic/pthread_internal.h"
 #include "libc_init_common.h"
 
+#include "async_safe/log.h"
 #include "private/bionic_defs.h"
 #include "private/bionic_elf_tls.h"
 #include "private/bionic_globals.h"
@@ -54,6 +55,19 @@
 #include "private/bionic_ssp.h"
 #include "private/bionic_tls.h"
 #include "private/KernelArgumentBlock.h"
+#include "sys/system_properties.h"
+#include "sysprop_helpers.h"
+
+static bool starts_with(const char* s, const char* prefix) {
+  return strncmp(s, prefix, strlen(prefix)) == 0;
+}
+
+static bool is_debuggable_build() {
+  char pv[8];
+  return get_property_value("ro.debuggable", pv, sizeof(pv)) && strcmp(pv, "1") == 0;
+}
+
+extern "C" const char* __gnu_basename(const char* path);
 
 extern "C" {
   extern void netdClientInit(void);
@@ -104,6 +118,24 @@ static void init_prog_id(libc_globals* globals) {
   }
 
 #undef IS
+
+  bool is_debuggable = is_debuggable_build();
+  const bool is_vendor_prog = starts_with(exe_path, "/vendor/") || starts_with(exe_path, "/apex/com.google.");
+  if (is_debuggable && is_vendor_prog) {
+    const char* basename = __gnu_basename(exe_path);
+    static const char propName[] = "persist.device_config.memory_safety_native.hardened_malloc.mode_override.process.";
+    char sysprop_name[512];
+    char sysprop_value[PROP_VALUE_MAX];
+    async_safe_format_buffer(sysprop_name, sizeof(sysprop_name), "%s%s", propName,
+                             basename);
+    get_property_value(sysprop_name, sysprop_value, sizeof(sysprop_value));
+    if (strcmp("disabled", sysprop_value) == 0) {
+      flags = GLOBAL_FLAG_DISABLE_HARDENED_MALLOC;
+    } else if (strcmp("enabled", sysprop_value) == 0) {
+      prog_id = 0;
+      flags = 0;
+    }
+  }
 
   // libc_globals struct is write-protected
   globals->flags = flags;

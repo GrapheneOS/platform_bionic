@@ -102,6 +102,10 @@ static void init_prog_id(libc_globals* globals) {
     // needed for Pixel Tablet as of Android 15, see https://github.com/GrapheneOS/os-issue-tracker/issues/4306
     flags = GLOBAL_FLAG_DISABLE_HARDENED_MALLOC;
   }
+  else if (IS("/vendor/bin/shared_modem_platform")) {
+    // needed for 9th generation Pixels (at minimum) since Android 16
+    flags = GLOBAL_FLAG_DISABLE_HARDENED_MALLOC;
+  }
 
 #undef IS
 

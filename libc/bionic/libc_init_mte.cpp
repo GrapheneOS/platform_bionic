@@ -133,7 +133,7 @@ static bool get_environment_memtag_setting(HeapTaggingLevel* level) {
   const bool is_debug_build = is_debuggable_build();
   if (is_vendor_prog) {
     bool apply_override =
-        strcmp(progname, "/apex/com.google.pixel.camera.hal/bin/hw/android.hardware.camera.provider@2.7-service-google")
+        strcmp(progname, "/apex/com.google.pixel.camera.hal/bin/hw/android.hardware.camera.provider@2.7-service-google") != 0
     ;
     if (apply_override) {
         *level = M_HEAP_TAGGING_LEVEL_ASYNC;

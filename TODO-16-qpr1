@@ -1,3 +1,0 @@
-add guard page(s) between static_tls and stack
-move pthread_internal_t behind guard page
-add secondary stack randomization

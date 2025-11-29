@@ -142,6 +142,10 @@ static bool get_environment_memtag_setting(HeapTaggingLevel* level) {
                  && strcmp(device_name, "caiman") != 0
                  && strcmp(device_name, "komodo") != 0
                  && strcmp(device_name, "comet") != 0
+                 && strcmp(device_name, "frankel") != 0
+                 && strcmp(device_name, "blazer") != 0
+                 && strcmp(device_name, "mustang") != 0
+                 && strcmp(device_name, "rango") != 0
             ) || strcmp(progname, "/vendor/bin/shared_modem_platform") != 0
         )
     ;

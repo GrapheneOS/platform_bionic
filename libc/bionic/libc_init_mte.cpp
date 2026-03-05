@@ -142,6 +142,7 @@ static bool get_environment_memtag_setting(HeapTaggingLevel* level) {
                  && strcmp(device_name, "caiman") != 0
                  && strcmp(device_name, "komodo") != 0
                  && strcmp(device_name, "comet") != 0
+                 && strcmp(device_name, "stallion") != 0
                  && strcmp(device_name, "frankel") != 0
                  && strcmp(device_name, "blazer") != 0
                  && strcmp(device_name, "mustang") != 0

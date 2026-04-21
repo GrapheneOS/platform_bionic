@@ -818,8 +818,10 @@ TEST(android_mallopt, set_allocation_limit_realloc_increase) {
   memory = realloc(memory, 80 * 1024 * 1024);
   ASSERT_TRUE(memory != nullptr);
   // Now push past limit.
-  memory = realloc(memory, 130 * 1024 * 1024);
-  ASSERT_TRUE(memory == nullptr);
+  void* new_memory = realloc(memory, 130 * 1024 * 1024);
+  ASSERT_TRUE(new_memory == nullptr);
+  // The original pointer should still be valid, so free it.
+  free(memory);
 
   VerifyMaxPointers(max_pointers);
 #else

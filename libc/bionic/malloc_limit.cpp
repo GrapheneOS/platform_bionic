@@ -201,8 +201,7 @@ static void* LimitRealloc(void* old_mem, size_t bytes) {
   if (bytes > old_usable_size && !CheckLimit(bytes - old_usable_size)) {
     warning_log("malloc_limit: realloc(%p, %zu) exceeds limit %" PRId64, old_mem, bytes,
                 gAllocLimit);
-    // Free the old pointer.
-    LimitFree(old_mem);
+    // Do not free the old pointer, it's still valid.
     return nullptr;
   }
 

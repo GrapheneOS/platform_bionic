@@ -237,8 +237,13 @@ ThreadMapping __allocate_thread_mapping(size_t stack_size, size_t stack_guard_si
 #else
   size_t max_gap_size = stack_size / 10;
 #endif
-  // Make sure random stack top guard size are multiples of page size.
+  // Make sure the random stack top guard size is a multiple of the page size,
+  // and always reserve at least one guard page between the stack and the
+  // pthread_internal_t / static TLS region. arc4random_uniform() can return 0,
+  // and align_up(0, page_size) is 0, which would leave no guard page at all
+  // and let a stack overflow silently corrupt pthread_internal_t.
   size_t gap_size = __builtin_align_up(arc4random_uniform(max_gap_size), page_size());
+  if (gap_size == 0) gap_size = page_size();
 
   // Allocate in order: stack guard, stack, (random) guard page(s), pthread_internal_t, static TLS, libgen buffers, guard page.
   size_t mmap_size;

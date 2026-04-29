@@ -131,11 +131,16 @@ extern "C" int mallopt(int param, int value) {
   }
 
   if (param == M_BIONIC_RESTORE_DEFAULT_SIGABRT_HANDLER) {
-    if (__libc_globals->saved_sigabrt_handler.sa_sigaction != nullptr) {
-      sigaction(SIGABRT, &__libc_globals->saved_sigabrt_handler, nullptr);
-      return 1;
-    }
-    return 0;
+    // The saved handler is captured in __libc_preinit_impl, which runs as
+    // constructor(1) — i.e. before any other constructor or .preinit_array
+    // entry. At that point execve(2) has just reset SIGABRT to SIG_DFL, so
+    // saved_sigabrt_handler is a zero-initialized struct (sa_handler ==
+    // SIG_DFL == nullptr). Restoring SIG_DFL is precisely the goal of this
+    // option (it lets a process bypass debuggerd / sigchainlib SIGABRT
+    // handlers that were installed later), so do not skip the restore when
+    // the saved handler is NULL.
+    sigaction(SIGABRT, &__libc_globals->saved_sigabrt_handler, nullptr);
+    return 1;
   }
 
   if (param == M_BIONIC_ZERO_INIT) {

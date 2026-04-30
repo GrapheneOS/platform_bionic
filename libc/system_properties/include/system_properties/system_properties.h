@@ -83,13 +83,16 @@ class SystemProperties {
       MAX(sizeof(ContextsSerialized), MAX(sizeof(ContextsSplit), sizeof(ContextsPreSplit)));
   alignas(kMaxContextsAlign) char contexts_data_[kMaxContextsSize];
   alignas(kMaxContextsAlign) char appcompat_override_contexts_data_[kMaxContextsSize];
+  alignas(kMaxContextsAlign) char extended_override_contexts_data_[kMaxContextsSize];
   Contexts* contexts_;
   // See http://b/291816546#comment#3 for more explanation of appcompat_override
   Contexts* appcompat_override_contexts_;
+  Contexts* extended_override_contexts_;
 
   bool InitContexts(bool load_default_path);
 
   bool initialized_;
   PropertiesFilename properties_filename_;
   PropertiesFilename appcompat_filename_;
+  PropertiesFilename extended_filename_;
 };

@@ -52,6 +52,7 @@
 #define SERIAL_DIRTY(serial) ((serial)&1)
 #define SERIAL_VALUE_LEN(serial) ((serial) >> 24)
 #define APPCOMPAT_PREFIX "ro.appcompat_override."
+#define HIDE_CARRIER_INFO_PREFIX "ro.hide_carrier_info."
 
 static bool is_dir(const char* pathname) {
   struct stat info;
@@ -133,6 +134,19 @@ bool SystemProperties::AreaInit(const char* filename, bool* fsetxattr_failed,
     }
   }
 
+  extended_filename_ =
+      PropertiesFilename(properties_filename_.c_str(), "extended_override");
+  extended_override_contexts_ = nullptr;
+  if (access(extended_filename_.c_str(), F_OK) != -1) {
+    auto* extended_contexts = new (extended_override_contexts_data_) ContextsSerialized();
+    if (!extended_contexts->Initialize(true, extended_filename_.c_str(), fsetxattr_failed,
+                                       load_default_path)) {
+      return false;
+    } else {
+      extended_override_contexts_ = extended_contexts;
+    }
+  }
+
   initialized_ = true;
   return true;
 }
@@ -175,6 +189,30 @@ const prop_info* SystemProperties::Find(const char* name) {
 
 static bool is_appcompat_override(const char* name) {
   return strncmp(name, APPCOMPAT_PREFIX, strlen(APPCOMPAT_PREFIX)) == 0;
+}
+
+static bool is_hide_carrier_info_override(const char* name) {
+  return strncmp(name, HIDE_CARRIER_INFO_PREFIX, strlen(HIDE_CARRIER_INFO_PREFIX)) == 0;
+}
+
+// needed to deny modifications to these props
+// we cant know the actually loaded props before the init
+static const char* const kHideCarrierInfoDeniedProps[] = {
+    "gsm.sim.operator.alpha",
+    "gsm.sim.operator.numeric",
+    "gsm.sim.operator.iso-country",
+    "gsm.operator.alpha",
+    "gsm.operator.numeric",
+    "gsm.operator.iso-country",
+    "gsm.operator.isroaming",
+    "gsm.sim.state",
+};
+
+static bool is_hide_carrier_info_denied(const char* name) {
+  for (const char* denied : kHideCarrierInfoDeniedProps) {
+    if (strcmp(name, denied) == 0) return true;
+  }
+  return false;
 }
 
 static bool is_read_only(const char* name) {
@@ -276,23 +314,36 @@ int SystemProperties::Update(prop_info* pi, const char* value, unsigned int len)
     return -1;
   }
   bool have_override = appcompat_override_contexts_ != nullptr;
+  bool have_extended =
+      extended_override_contexts_ != nullptr && !is_hide_carrier_info_denied(pi->name);
 
   prop_area* serial_pa = contexts_->GetSerialPropArea();
   prop_area* override_serial_pa =
       have_override ? appcompat_override_contexts_->GetSerialPropArea() : nullptr;
+  prop_area* ext_serial_pa =
+      have_extended ? extended_override_contexts_->GetSerialPropArea() : nullptr;
   if (!serial_pa) {
     return -1;
   }
   prop_area* pa = contexts_->GetPropAreaForName(pi->name);
   prop_area* override_pa =
       have_override ? appcompat_override_contexts_->GetPropAreaForName(pi->name) : nullptr;
+  prop_area* ext_pa =
+      have_extended ? extended_override_contexts_->GetPropAreaForName(pi->name) : nullptr;
   if (__predict_false(!pa)) {
     async_safe_format_log(ANDROID_LOG_ERROR, "libc", "Could not find area for \"%s\"", pi->name);
     return -1;
   }
   CHECK(!have_override || (override_pa && override_serial_pa));
+  CHECK(!have_extended || (ext_pa && ext_serial_pa));
 
   auto* override_pi = const_cast<prop_info*>(have_override ? override_pa->find(pi->name) : nullptr);
+  auto* ext_pi = const_cast<prop_info*>(have_extended ? ext_pa->find(pi->name) : nullptr);
+  // ext_pi may actually be null if the prop was never seeded into the extended area
+  // (e.g. added before the extended area existed)
+  if (have_extended && ext_pi == nullptr) {
+    have_extended = false;
+  }
 
   uint32_t serial = atomic_load_explicit(&pi->serial, memory_order_relaxed);
   unsigned int old_len = SERIAL_VALUE_LEN(serial);
@@ -305,6 +356,9 @@ int SystemProperties::Update(prop_info* pi, const char* value, unsigned int len)
   if (have_override) {
     memcpy(override_pa->dirty_backup_area(), override_pi->value, old_len + 1);
   }
+  if (have_extended) {
+    memcpy(ext_pa->dirty_backup_area(), ext_pi->value, old_len + 1);
+  }
   serial |= 1;
   atomic_store_explicit(&pi->serial, serial, memory_order_release);
   atomic_thread_fence(memory_order_release);  // Order preceding store w.r.t. memcpy().
@@ -316,12 +370,19 @@ int SystemProperties::Update(prop_info* pi, const char* value, unsigned int len)
     atomic_store_explicit(&override_pi->serial, serial, memory_order_relaxed);
     memcpy(override_pi->value, value, len + 1);
   }
+  if (have_extended) {
+    atomic_store_explicit(&ext_pi->serial, serial, memory_order_relaxed);
+    memcpy(ext_pi->value, value, len + 1);
+  }
   // Now the primary value property area is up-to-date. Let readers know that they should
   // look at the property value instead of the backup area.
   int new_serial = (len << 24) | ((serial + 1) & 0xffffff);
   atomic_store_explicit(&pi->serial, new_serial, memory_order_release);
   if (have_override) {
     atomic_store_explicit(&override_pi->serial, new_serial, memory_order_relaxed);
+  }
+  if (have_extended) {
+    atomic_store_explicit(&ext_pi->serial, new_serial, memory_order_relaxed);
   }
   // Implicitly includes a fence to ensure the serial number update becomes visible before
   // we reuse the backup area the next time.
@@ -331,6 +392,11 @@ int SystemProperties::Update(prop_info* pi, const char* value, unsigned int len)
                         memory_order_release);
   if (have_override) {
     atomic_store_explicit(override_serial_pa->serial(),
+                          atomic_load_explicit(serial_pa->serial(), memory_order_relaxed) + 1,
+                          memory_order_release);
+  }
+  if (have_extended) {
+    atomic_store_explicit(ext_serial_pa->serial(),
                           atomic_load_explicit(serial_pa->serial(), memory_order_relaxed) + 1,
                           memory_order_release);
   }
@@ -405,6 +471,36 @@ int SystemProperties::Add(const char* name, unsigned int namelen, const char* va
       CHECK(getpid() == 1 || getuid() == 0);
       atomic_thread_fence(memory_order_release);
       memcpy(other_pi->value, value, valuelen + 1);
+    }
+  }
+
+  if (extended_override_contexts_ != nullptr) {
+    bool is_hci_seed = is_hide_carrier_info_override(name);
+    bool is_appcompat = is_appcompat_override(name);
+    const char* ext_name = name;
+    if (is_hci_seed) {
+      ext_name += strlen(HIDE_CARRIER_INFO_PREFIX);
+    } else if (is_appcompat) {
+      ext_name += strlen(APPCOMPAT_PREFIX);
+    }
+    bool denied = !is_hci_seed && is_hide_carrier_info_denied(ext_name);
+    if (!denied) {
+      prop_area* ext_pa = extended_override_contexts_->GetPropAreaForName(ext_name);
+      prop_area* ext_serial_pa = extended_override_contexts_->GetSerialPropArea();
+      CHECK(ext_pa && ext_serial_pa);
+      auto ext_pi = const_cast<prop_info*>(ext_pa->find(ext_name));
+      if (!ext_pi) {
+        if (ext_pa->add(ext_name, strlen(ext_name), value, valuelen)) {
+          atomic_store_explicit(
+              ext_serial_pa->serial(),
+              atomic_load_explicit(ext_serial_pa->serial(), memory_order_relaxed) + 1,
+              memory_order_release);
+        }
+      } else if (is_hci_seed || is_appcompat) {
+        CHECK(getpid() == 1 || getuid() == 0);
+        atomic_thread_fence(memory_order_release);
+        memcpy(ext_pi->value, value, valuelen + 1);
+      }
     }
   }
 

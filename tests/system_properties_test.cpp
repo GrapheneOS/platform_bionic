@@ -43,8 +43,10 @@ class SystemPropertiesTest : public SystemProperties {
  public:
   SystemPropertiesTest() : SystemProperties(false) {
     appcompat_path = android::base::StringPrintf("%s/appcompat_override", dir_.path);
+    extended_path = android::base::StringPrintf("%s/extended_override", dir_.path);
     mount_path = android::base::StringPrintf("%s/__properties__", dir_.path);
     mkdir(appcompat_path.c_str(), S_IRWXU | S_IXGRP | S_IXOTH);
+    mkdir(extended_path.c_str(), S_IRWXU | S_IXGRP | S_IXOTH);
     valid_ = AreaInit(dir_.path, nullptr, true);
   }
   ~SystemPropertiesTest() {
@@ -63,11 +65,14 @@ class SystemPropertiesTest : public SystemProperties {
 
   const char* get_appcompat_path() const { return appcompat_path.c_str(); }
 
+  const char* get_extended_path() const { return extended_path.c_str(); }
+
   const char* get_mount_path() const { return mount_path.c_str(); }
 
   const char* get_real_sysprop_dir() const { return real_sysprop_dir.c_str(); }
 
   std::string appcompat_path;
+  std::string extended_path;
   std::string mount_path;
   std::string real_sysprop_dir = "/dev/__properties__";
 
@@ -192,6 +197,99 @@ TEST(properties, __system_property_add_appcompat) {
 
     ASSERT_EQ(0, system_properties.Get(override_with_no_real, propvalue));
     ASSERT_STREQ(propvalue, "");
+
+#else   // __BIONIC__
+    GTEST_SKIP() << "bionic-only test";
+#endif  // __BIONIC__
+}
+
+TEST(properties, __system_property_add_extended_override) {
+#if defined(__BIONIC__)
+    if (getuid() != 0) GTEST_SKIP() << "test requires root";
+    SystemPropertiesTest system_properties;
+    ASSERT_TRUE(system_properties.valid());
+
+    char appcompat_seed[] = "ro.appcompat_override.ro.property";
+    char real_name[] = "ro.property";
+    char denied_name[] = "gsm.sim.operator.numeric";
+    char unrelated[] = "ro.test.test";
+
+    ASSERT_EQ(0, system_properties.Add(real_name, strlen(real_name), "real", 4));
+    ASSERT_EQ(0, system_properties.Add(appcompat_seed, strlen(appcompat_seed), "compat", 6));
+    ASSERT_EQ(0, system_properties.Add(denied_name, strlen(denied_name), "123456", 6));
+    ASSERT_EQ(0, system_properties.Add(unrelated, strlen(unrelated), "value", 5));
+
+    char propvalue[PROP_VALUE_MAX];
+
+    ASSERT_EQ(4, system_properties.Get(real_name, propvalue));
+    ASSERT_STREQ(propvalue, "real");
+    ASSERT_EQ(6, system_properties.Get(denied_name, propvalue));
+    ASSERT_STREQ(propvalue, "123456");
+
+    int ret = mount(system_properties.get_extended_path(), system_properties.get_path(), nullptr,
+                    MS_BIND | MS_REC, nullptr);
+    if (ret != 0) {
+      ASSERT_ERRNO(0);
+    }
+    system_properties.Reload(true);
+
+    // real_name overridden by appcompat.
+    ASSERT_EQ(6, system_properties.Get(real_name, propvalue));
+    ASSERT_STREQ(propvalue, "compat");
+
+    // denied key blocked from extended_override
+    // on add; absent, so get returns "".
+    ASSERT_EQ(0, system_properties.Get(denied_name, propvalue));
+    ASSERT_STREQ(propvalue, "");
+
+    // unrelated prop mirrored
+    ASSERT_EQ(5, system_properties.Get(unrelated, propvalue));
+    ASSERT_STREQ(propvalue, "value");
+
+#else   // __BIONIC__
+    GTEST_SKIP() << "bionic-only test";
+#endif  // __BIONIC__
+}
+
+TEST(properties, __system_property_update_extended_override_denylist) {
+#if defined(__BIONIC__)
+    if (getuid() != 0) GTEST_SKIP() << "test requires root";
+    SystemPropertiesTest system_properties;
+    ASSERT_TRUE(system_properties.valid());
+
+    char denied_name[] = "gsm.sim.operator.numeric";
+    char allowed_name[] = "gsm.version.baseband";
+
+    ASSERT_EQ(0, system_properties.Add(denied_name, strlen(denied_name), "123456", 6));
+    ASSERT_EQ(0, system_properties.Add(allowed_name, strlen(allowed_name), "v1", 2));
+
+    const prop_info* pi = system_properties.Find(denied_name);
+    ASSERT_TRUE(pi != nullptr);
+    system_properties.Update(const_cast<prop_info*>(pi), "123456", 6);
+
+    pi = system_properties.Find(allowed_name);
+    ASSERT_TRUE(pi != nullptr);
+    system_properties.Update(const_cast<prop_info*>(pi), "v2", 2);
+
+    char propvalue[PROP_VALUE_MAX];
+
+    ASSERT_EQ(6, system_properties.Get(denied_name, propvalue));
+    ASSERT_STREQ(propvalue, "123456");
+    ASSERT_EQ(2, system_properties.Get(allowed_name, propvalue));
+    ASSERT_STREQ(propvalue, "v2");
+
+    int ret = mount(system_properties.get_extended_path(), system_properties.get_path(), nullptr,
+                    MS_BIND | MS_REC, nullptr);
+    if (ret != 0) {
+      ASSERT_ERRNO(0);
+    }
+    system_properties.Reload(true);
+
+    ASSERT_EQ(0, system_properties.Get(denied_name, propvalue));
+    ASSERT_STREQ(propvalue, "");
+
+    ASSERT_EQ(2, system_properties.Get(allowed_name, propvalue));
+    ASSERT_STREQ(propvalue, "v2");
 
 #else   // __BIONIC__
     GTEST_SKIP() << "bionic-only test";

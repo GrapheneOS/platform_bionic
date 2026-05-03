@@ -52,7 +52,6 @@
 #define SERIAL_DIRTY(serial) ((serial)&1)
 #define SERIAL_VALUE_LEN(serial) ((serial) >> 24)
 #define APPCOMPAT_PREFIX "ro.appcompat_override."
-#define HIDE_CARRIER_INFO_PREFIX "ro.hide_carrier_info."
 
 static bool is_dir(const char* pathname) {
   struct stat info;
@@ -189,10 +188,6 @@ const prop_info* SystemProperties::Find(const char* name) {
 
 static bool is_appcompat_override(const char* name) {
   return strncmp(name, APPCOMPAT_PREFIX, strlen(APPCOMPAT_PREFIX)) == 0;
-}
-
-static bool is_hide_carrier_info_override(const char* name) {
-  return strncmp(name, HIDE_CARRIER_INFO_PREFIX, strlen(HIDE_CARRIER_INFO_PREFIX)) == 0;
 }
 
 // needed to deny modifications to these props
@@ -339,8 +334,8 @@ int SystemProperties::Update(prop_info* pi, const char* value, unsigned int len)
 
   auto* override_pi = const_cast<prop_info*>(have_override ? override_pa->find(pi->name) : nullptr);
   auto* ext_pi = const_cast<prop_info*>(have_extended ? ext_pa->find(pi->name) : nullptr);
-  // ext_pi may actually be null if the prop was never seeded into the extended area
-  // (e.g. added before the extended area existed)
+  // ext_pi may be null if the prop was never mirrored into the extended area
+  // (e.g. denied by the HCI denylist, or added before the extended area existed)
   if (have_extended && ext_pi == nullptr) {
     have_extended = false;
   }
@@ -481,15 +476,12 @@ int SystemProperties::Add(const char* name, unsigned int namelen, const char* va
   }
 
   if (extended_override_contexts_ != nullptr) {
-    bool is_hci_seed = is_hide_carrier_info_override(name);
     bool is_appcompat = is_appcompat_override(name);
     const char* ext_name = name;
-    if (is_hci_seed) {
-      ext_name += strlen(HIDE_CARRIER_INFO_PREFIX);
-    } else if (is_appcompat) {
+    if (is_appcompat) {
       ext_name += strlen(APPCOMPAT_PREFIX);
     }
-    bool denied = !is_hci_seed && is_hide_carrier_info_denied(ext_name);
+    bool denied = is_hide_carrier_info_denied(ext_name);
     if (!denied) {
       prop_area* ext_pa = extended_override_contexts_->GetPropAreaForName(ext_name);
       prop_area* ext_serial_pa = extended_override_contexts_->GetSerialPropArea();
@@ -502,7 +494,7 @@ int SystemProperties::Add(const char* name, unsigned int namelen, const char* va
               atomic_load_explicit(ext_serial_pa->serial(), memory_order_relaxed) + 1,
               memory_order_release);
         }
-      } else if (is_hci_seed || is_appcompat) {
+      } else if (is_appcompat) {
         CHECK(getpid() == 1 || getuid() == 0);
         atomic_thread_fence(memory_order_release);
         memcpy(ext_pi->value, value, valuelen + 1);

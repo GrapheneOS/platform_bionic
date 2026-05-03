@@ -1305,6 +1305,54 @@ cc_test {
     ],
 }
 
+// minial static binary for just the system properties tests
+cc_test {
+    name: "bionic-sysprop-tests",
+    gtest: false,
+    defaults: [
+        "bionic_tests_defaults",
+        "large_system_property_node_defaults",
+    ],
+    host_supported: false,
+    test_suites: ["general-tests"],
+
+    srcs: [
+        "gtest_globals.cpp",
+        "gtest_main.cpp",
+        "system_properties_test.cpp",
+        "utils.cpp",
+    ],
+
+    include_dirs: [
+        "bionic/libc",
+    ],
+
+    target: {
+        bionic: {
+            whole_static_libs: [
+                "libasync_safe",
+                "libprocinfo",
+                "libsystemproperties",
+            ],
+        },
+    },
+
+    static_libs: [
+        "libm",
+        "libc",
+        "libdl",
+        "liblog",
+        "libbase",
+        "libgtest_isolated",
+    ],
+
+    static_executable: true,
+    stl: "libc++_static",
+    lto: {
+        never: true,
+    },
+}
+
 // -----------------------------------------------------------------------------
 // Tests to run on the host and linked against glibc. Run with:
 //   cd bionic/tests; mm bionic-unit-tests-glibc-run

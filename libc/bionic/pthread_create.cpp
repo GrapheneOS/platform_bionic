@@ -294,9 +294,7 @@ ThreadMapping __allocate_thread_mapping(size_t stack_size, size_t stack_guard_si
     munmap(space, mmap_size);
     return {};
   }
-  prctl(PR_SET_VMA, PR_SET_VMA_ANON_NAME, space, stack_guard_size, "stack guard");
   char* const stack_top_guard = space + stack_guard_size + stack_size;
-  prctl(PR_SET_VMA, PR_SET_VMA_ANON_NAME, stack_top_guard, gap_size, "stack top guard");
 
   const size_t non_stack_writeable_offset = stack_guard_size + stack_size + gap_size;
   const size_t non_stack_writeable_size = mmap_size - non_stack_writeable_offset - PTHREAD_GUARD_SIZE;

@@ -66,7 +66,7 @@ void* _Nonnull memmove(void* _Nonnull __dst, const void* _Nonnull __src, size_t 
  */
 void* _Nonnull memset(void* _Nonnull __dst, int __ch, size_t __n);
 
-void* _Nonnull explicit_bzero(void* _Nonnull s, size_t n);
+void explicit_bzero(void* _Nonnull s, size_t n);
 
 /**
  * [memset_explicit(3)](https://man7.org/linux/man-pages/man3/memset_explicit.3.html)

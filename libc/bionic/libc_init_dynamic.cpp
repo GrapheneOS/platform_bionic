@@ -140,7 +140,7 @@ static void init_prog_id(libc_globals* globals) {
     const char* basename = __gnu_basename(exe_path);
     static const char propName[] = "persist.device_config.memory_safety_native.hardened_malloc.mode_override.process.";
     char sysprop_name[512];
-    char sysprop_value[PROP_VALUE_MAX];
+    char sysprop_value[PROP_VALUE_MAX] = {};
     async_safe_format_buffer(sysprop_name, sizeof(sysprop_name), "%s%s", propName,
                              basename);
     get_property_value(sysprop_name, sysprop_value, sizeof(sysprop_value));

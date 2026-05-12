@@ -443,9 +443,8 @@ void InitNativeAllocatorDispatch(libc_globals* globals) {
     &__scudo_malloc_dispatch;
 
   if (!hardened_impl) {
-    globals->malloc_dispatch_table = __scudo_malloc_dispatch;
-    globals->current_dispatch_table = &globals->malloc_dispatch_table;
-    globals->default_dispatch_table = &globals->malloc_dispatch_table;
+    globals->current_dispatch_table = &__scudo_malloc_dispatch;
+    globals->default_dispatch_table = &__scudo_malloc_dispatch;
   }
 
   native_allocator_dispatch = table;

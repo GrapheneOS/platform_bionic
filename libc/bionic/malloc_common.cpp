@@ -501,9 +501,8 @@ void InitNativeAllocatorDispatch(libc_globals* globals) {
 
   if (!hardened_impl) {
     async_safe_format_log(ANDROID_LOG_INFO, "malloc_common", "using scudo instead of hardened_malloc");
-    globals->malloc_dispatch_table = __scudo_malloc_dispatch;
-    globals->current_dispatch_table = &globals->malloc_dispatch_table;
-    globals->default_dispatch_table = &globals->malloc_dispatch_table;
+    globals->current_dispatch_table = &__scudo_malloc_dispatch;
+    globals->default_dispatch_table = &__scudo_malloc_dispatch;
   }
 
   native_allocator_dispatch = table;

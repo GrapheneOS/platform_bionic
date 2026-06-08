@@ -201,7 +201,7 @@ cc_defaults {
             ],
         },
         lib64: {
-            srcs: ["bionic/h_malloc_wrapper.cpp"],
+            srcs: [":libc_h_malloc_wrapper_src"],
             cflags: [
                 "-DH_MALLOC_PREFIX",
                 "-DUSE_H_MALLOC",
@@ -227,7 +227,7 @@ cc_library_static {
             static_libs: ["libjemalloc5"],
         },
         lib64: {
-            srcs: ["bionic/h_malloc_wrapper.cpp"],
+            srcs: [":libc_h_malloc_wrapper_src"],
             static_libs: ["libhardened_malloc"],
         },
     },
@@ -1548,6 +1548,11 @@ cc_library_static {
         "libc_init_static",
         "libc_unwind_static",
     ],
+}
+
+filegroup {
+    name: "libc_h_malloc_wrapper_src",
+    srcs: ["bionic/h_malloc_wrapper.cpp"],
 }
 
 filegroup {

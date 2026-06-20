@@ -136,6 +136,7 @@ static bool get_environment_memtag_setting(HeapTaggingLevel* level) {
     get_property_value("ro.product.name", device_name, sizeof(device_name));
     bool apply_override =
         strcmp(progname, "/apex/com.google.pixel.camera.hal/bin/hw/android.hardware.camera.provider@2.7-service-google") != 0
+        && strcmp(progname, "/apex/com.google.android.widevine/bin/hw/android.hardware.drm-service.widevine-rikers") != 0
         && (
             (
                  strcmp(device_name, "tokay") != 0

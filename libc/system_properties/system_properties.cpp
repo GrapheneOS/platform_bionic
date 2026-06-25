@@ -465,6 +465,11 @@ int SystemProperties::Add(const char* name, unsigned int namelen, const char* va
       CHECK(getpid() == 1 || getuid() == 0);
       atomic_thread_fence(memory_order_release);
       memcpy(other_pi->value, value, valuelen + 1);
+      // the high byte of serial encodes value length, we need to update it so readers
+      // (that use SERIAL_VALUE_LEN) return the full overridden string.
+      uint32_t old_serial = atomic_load_explicit(&other_pi->serial, memory_order_relaxed);
+      uint32_t new_serial = (valuelen << 24) | (old_serial & 0x00ffffff);
+      atomic_store_explicit(&other_pi->serial, new_serial, memory_order_release);
     }
   }
 

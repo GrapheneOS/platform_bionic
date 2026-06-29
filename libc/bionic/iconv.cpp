@@ -129,7 +129,10 @@ struct __iconv_t {
     dst_bytes_left = dst_bytes_left0;
 
     while (*src_bytes_left > 0) {
-      if (!GetNext() || !Convert()) return -1;
+      Result r = GetNext();
+      if (r == Result::kError) return -1;
+      if (r == Result::kSkip) continue;
+      if (!Convert()) return -1;
     }
     return Done();
   }
@@ -149,7 +152,10 @@ struct __iconv_t {
   char** dst_buf;
   size_t* dst_bytes_left;
 
-  bool GetNext() {
+  // kSkip means //IGNORE already consumed an illegal sequence: skip Convert().
+  enum class Result { kOk, kSkip, kError };
+
+  Result GetNext() {
     errno = 0;
     switch (src_encoding) {
       case US_ASCII:
@@ -161,10 +167,13 @@ struct __iconv_t {
       case UTF_8:
         src_bytes_used = mbrtoc32(&wc, *src_buf, *src_bytes_left, &ps);
         if (src_bytes_used == BIONIC_MULTIBYTE_RESULT_ILLEGAL_SEQUENCE) {
-          break;  // EILSEQ already set.
+          // EILSEQ already set. Clamp the (size_t)-1 so the //IGNORE and
+          // //TRANSLIT source advances below don't wrap out of bounds.
+          src_bytes_used = 1;
+          break;
         } else if (src_bytes_used == BIONIC_MULTIBYTE_RESULT_INCOMPLETE_SEQUENCE) {
           errno = EINVAL;
-          return false;
+          return Result::kError;
         }
         break;
 
@@ -172,7 +181,7 @@ struct __iconv_t {
       case UTF_16_LE: {
         if (*src_bytes_left < 2) {
           errno = EINVAL;
-          return false;
+          return Result::kError;
         }
         bool swap = (src_encoding == UTF_16_BE);
         wc = In16(*src_buf, swap);
@@ -181,11 +190,11 @@ struct __iconv_t {
         if (wc >= 0xd800 && wc <= 0xdfff) {
           if (wc >= 0xdc00) {  // Low surrogate before high surrogate.
             errno = EILSEQ;
-            return false;
+            return Result::kError;
           }
           if (*src_bytes_left < 4) {
             errno = EINVAL;
-            return false;
+            return Result::kError;
           }
           uint16_t hi = wc;
           uint16_t lo = In16(*src_buf + 2, swap);
@@ -200,7 +209,7 @@ struct __iconv_t {
       case WCHAR_T:
         if (*src_bytes_left < 4) {
           errno = EINVAL;
-          return false;
+          return Result::kError;
         }
         wc = In32(*src_buf, (src_encoding == UTF_32_BE));
         break;
@@ -209,19 +218,19 @@ struct __iconv_t {
     if (errno == EILSEQ) {
       switch (mode) {
         case ERROR:
-          return false;
+          return Result::kError;
         case IGNORE:
           *src_buf += src_bytes_used;
           *src_bytes_left -= src_bytes_used;
           ignored = true;
-          return GetNext();
+          return Result::kSkip;
         case TRANSLIT:
           wc = '?';
           ++replacement_count;
-          return true;
+          return Result::kOk;
       }
     }
-    return true;
+    return Result::kOk;
   }
 
   bool Convert() {

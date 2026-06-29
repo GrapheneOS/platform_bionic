@@ -123,6 +123,206 @@ TEST(iconv, iconv_lossy_IGNORE) {
   ASSERT_EQ(0, iconv_close(c));
 }
 
+// An illegal source sequence in //IGNORE or //TRANSLIT mode must skip the
+// offending bytes, not advance the source by mbrtoc32()'s (size_t)-1 result.
+TEST(iconv, iconv_IGNORE_malformed_utf8_middle) {
+  const char* utf8 = "a\xffz"; // 0xff is never a valid UTF-8 byte.
+  char buf[BUFSIZ] = {};
+
+  iconv_t c = iconv_open("UTF-8//IGNORE", "UTF-8");
+  ASSERT_NE(INVALID_ICONV_T, c);
+
+  char* in = const_cast<char*>(utf8);
+  size_t in_bytes = 3;
+  char* out = buf;
+  size_t out_bytes = sizeof(buf);
+
+  EXPECT_ERRNO_FAILURE(EILSEQ, static_cast<size_t>(-1), iconv(c, &in, &in_bytes, &out, &out_bytes));
+  EXPECT_EQ('a', buf[0]);
+  EXPECT_EQ('z', buf[1]);
+  EXPECT_EQ(0, buf[2]);
+  EXPECT_EQ(0U, in_bytes);
+  EXPECT_EQ(sizeof(buf) - 2, out_bytes);
+
+  ASSERT_EQ(0, iconv_close(c));
+}
+
+TEST(iconv, iconv_IGNORE_malformed_utf8_only) {
+  const char* utf8 = "\xff";
+  char buf[BUFSIZ] = {};
+
+  iconv_t c = iconv_open("UTF-8//IGNORE", "UTF-8");
+  ASSERT_NE(INVALID_ICONV_T, c);
+
+  char* in = const_cast<char*>(utf8);
+  size_t in_bytes = 1;
+  char* out = buf;
+  size_t out_bytes = sizeof(buf);
+
+  EXPECT_ERRNO_FAILURE(EILSEQ, static_cast<size_t>(-1), iconv(c, &in, &in_bytes, &out, &out_bytes));
+  EXPECT_EQ(0, buf[0]);
+  EXPECT_EQ(0U, in_bytes);
+  EXPECT_EQ(sizeof(buf), out_bytes);
+
+  ASSERT_EQ(0, iconv_close(c));
+}
+
+TEST(iconv, iconv_IGNORE_malformed_utf8_trailing) {
+  const char* utf8 = "az\xff";
+  char buf[BUFSIZ] = {};
+
+  iconv_t c = iconv_open("UTF-8//IGNORE", "UTF-8");
+  ASSERT_NE(INVALID_ICONV_T, c);
+
+  char* in = const_cast<char*>(utf8);
+  size_t in_bytes = 3;
+  char* out = buf;
+  size_t out_bytes = sizeof(buf);
+
+  EXPECT_ERRNO_FAILURE(EILSEQ, static_cast<size_t>(-1), iconv(c, &in, &in_bytes, &out, &out_bytes));
+  EXPECT_EQ('a', buf[0]);
+  EXPECT_EQ('z', buf[1]);
+  EXPECT_EQ(0, buf[2]);
+  EXPECT_EQ(0U, in_bytes);
+  EXPECT_EQ(sizeof(buf) - 2, out_bytes);
+
+  ASSERT_EQ(0, iconv_close(c));
+}
+
+TEST(iconv, iconv_TRANSLIT_malformed_utf8) {
+  const char* utf8 = "a\xffz";
+  char buf[BUFSIZ] = {};
+
+  iconv_t c = iconv_open("UTF-8//TRANSLIT", "UTF-8");
+  ASSERT_NE(INVALID_ICONV_T, c);
+
+  char* in = const_cast<char*>(utf8);
+  size_t in_bytes = 3;
+  char* out = buf;
+  size_t out_bytes = sizeof(buf);
+
+  EXPECT_EQ(1U, iconv(c, &in, &in_bytes, &out, &out_bytes));
+  EXPECT_EQ('a', buf[0]);
+  EXPECT_EQ('?', buf[1]);
+  EXPECT_EQ('z', buf[2]);
+  EXPECT_EQ(0, buf[3]);
+  EXPECT_EQ(0U, in_bytes);
+  EXPECT_EQ(sizeof(buf) - 3, out_bytes);
+
+  ASSERT_EQ(0, iconv_close(c));
+}
+
+TEST(iconv, iconv_IGNORE_invalid_ascii_trailing) {
+  const char* ascii = "a\x80"; // 0x80 is > 0x7f, so not ASCII.
+  char buf[BUFSIZ] = {};
+
+  iconv_t c = iconv_open("UTF-8//IGNORE", "ASCII");
+  ASSERT_NE(INVALID_ICONV_T, c);
+
+  char* in = const_cast<char*>(ascii);
+  size_t in_bytes = 2;
+  char* out = buf;
+  size_t out_bytes = sizeof(buf);
+
+  EXPECT_ERRNO_FAILURE(EILSEQ, static_cast<size_t>(-1), iconv(c, &in, &in_bytes, &out, &out_bytes));
+  EXPECT_EQ('a', buf[0]);
+  EXPECT_EQ(0, buf[1]);
+  EXPECT_EQ(0U, in_bytes);
+  EXPECT_EQ(sizeof(buf) - 1, out_bytes);
+
+  ASSERT_EQ(0, iconv_close(c));
+}
+
+TEST(iconv, iconv_IGNORE_consecutive_malformed_utf8) {
+  const char* utf8 = "a\xff\xffz";
+  char buf[BUFSIZ] = {};
+
+  iconv_t c = iconv_open("UTF-8//IGNORE", "UTF-8");
+  ASSERT_NE(INVALID_ICONV_T, c);
+
+  char* in = const_cast<char*>(utf8);
+  size_t in_bytes = 4;
+  char* out = buf;
+  size_t out_bytes = sizeof(buf);
+
+  EXPECT_ERRNO_FAILURE(EILSEQ, static_cast<size_t>(-1), iconv(c, &in, &in_bytes, &out, &out_bytes));
+  EXPECT_EQ('a', buf[0]);
+  EXPECT_EQ('z', buf[1]);
+  EXPECT_EQ(0, buf[2]);
+  EXPECT_EQ(0U, in_bytes);
+  EXPECT_EQ(sizeof(buf) - 2, out_bytes);
+
+  ASSERT_EQ(0, iconv_close(c));
+}
+
+TEST(iconv, iconv_IGNORE_all_malformed_utf8) {
+  const char* utf8 = "\xff\xff\xff";
+  char buf[BUFSIZ] = {};
+
+  iconv_t c = iconv_open("UTF-8//IGNORE", "UTF-8");
+  ASSERT_NE(INVALID_ICONV_T, c);
+
+  char* in = const_cast<char*>(utf8);
+  size_t in_bytes = 3;
+  char* out = buf;
+  size_t out_bytes = sizeof(buf);
+
+  EXPECT_ERRNO_FAILURE(EILSEQ, static_cast<size_t>(-1), iconv(c, &in, &in_bytes, &out, &out_bytes));
+  EXPECT_EQ(0, buf[0]);
+  EXPECT_EQ(0U, in_bytes);
+  EXPECT_EQ(sizeof(buf), out_bytes);
+
+  ASSERT_EQ(0, iconv_close(c));
+}
+
+TEST(iconv, iconv_IGNORE_malformed_multibyte_utf8) {
+  // Only the lead byte is skipped, not the whole intended sequence length.
+  const char* utf8 = "a\xe2\xe2z"; // 0xe2 starts a 3-byte sequence; 0xe2 is a bad continuation.
+  char buf[BUFSIZ] = {};
+
+  iconv_t c = iconv_open("UTF-8//IGNORE", "UTF-8");
+  ASSERT_NE(INVALID_ICONV_T, c);
+
+  char* in = const_cast<char*>(utf8);
+  size_t in_bytes = 4;
+  char* out = buf;
+  size_t out_bytes = sizeof(buf);
+
+  EXPECT_ERRNO_FAILURE(EILSEQ, static_cast<size_t>(-1), iconv(c, &in, &in_bytes, &out, &out_bytes));
+  EXPECT_EQ('a', buf[0]);
+  EXPECT_EQ('z', buf[1]);
+  EXPECT_EQ(0, buf[2]);
+  EXPECT_EQ(0U, in_bytes);
+  EXPECT_EQ(sizeof(buf) - 2, out_bytes);
+
+  ASSERT_EQ(0, iconv_close(c));
+}
+
+TEST(iconv, iconv_TRANSLIT_consecutive_malformed_utf8) {
+  const char* utf8 = "a\xff\xffz";
+  char buf[BUFSIZ] = {};
+
+  iconv_t c = iconv_open("UTF-8//TRANSLIT", "UTF-8");
+  ASSERT_NE(INVALID_ICONV_T, c);
+
+  char* in = const_cast<char*>(utf8);
+  size_t in_bytes = 4;
+  char* out = buf;
+  size_t out_bytes = sizeof(buf);
+
+  // Each illegal byte becomes one '?' replacement.
+  EXPECT_EQ(2U, iconv(c, &in, &in_bytes, &out, &out_bytes));
+  EXPECT_EQ('a', buf[0]);
+  EXPECT_EQ('?', buf[1]);
+  EXPECT_EQ('?', buf[2]);
+  EXPECT_EQ('z', buf[3]);
+  EXPECT_EQ(0, buf[4]);
+  EXPECT_EQ(0U, in_bytes);
+  EXPECT_EQ(sizeof(buf) - 4, out_bytes);
+
+  ASSERT_EQ(0, iconv_close(c));
+}
+
 TEST(iconv, iconv_lossy) {
   const char* utf8 = "a٦ᄀz"; // U+0666 ٦ 0xd9 0xa6 // U+1100 ᄀ 0xe1 0x84 0x80
   char buf[BUFSIZ] = {};

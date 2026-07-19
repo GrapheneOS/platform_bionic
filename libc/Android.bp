@@ -287,6 +287,11 @@ cc_library_static {
         "bionic/libc_init_static.cpp",
         ":elf_note_sources",
     ],
+    product_variables: {
+        debuggable: {
+            cflags: ["-DIS_DEBUGGABLE_BUILD"],
+        },
+    },
     cflags: [
         "-fno-stack-protector",
 
@@ -300,6 +305,11 @@ cc_library_static {
     name: "libc_init_dynamic",
     defaults: ["libc_defaults"],
     srcs: ["bionic/libc_init_dynamic.cpp"],
+    product_variables: {
+        debuggable: {
+            cflags: ["-DIS_DEBUGGABLE_BUILD"],
+        },
+    },
     cflags: ["-fno-stack-protector"],
 }
 
@@ -1621,6 +1631,9 @@ cc_defaults {
     product_variables: {
         platform_sdk_version: {
             asflags: ["-DPLATFORM_SDK_VERSION=%d"],
+        },
+        debuggable: {
+            cflags: ["-DIS_DEBUGGABLE_BUILD"],
         },
     },
     static: {

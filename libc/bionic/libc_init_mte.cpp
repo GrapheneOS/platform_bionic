@@ -113,8 +113,11 @@ static bool starts_with(const char* s, const char* prefix) {
 }
 
 static bool is_debuggable_build() {
-  char pv[8];
-  return get_property_value("ro.debuggable", pv, sizeof(pv)) && strcmp(pv, "1") == 0;
+#ifdef IS_DEBUGGABLE_BUILD
+  return true;
+#else
+  return false;
+#endif
 }
 
 // Returns true if there's an environment setting (either sysprop or env var)

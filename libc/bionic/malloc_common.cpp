@@ -456,7 +456,11 @@ static bool is_hardened_malloc_disabled_via_proc_attr() {
 
 void InitNativeAllocatorDispatch(libc_globals* globals) {
   bool hardened_impl = true;
-  switch (get_prog_id()) {
+  int prog_id = 0;
+#if !defined(LIBC_STATIC)
+  prog_id = get_prog_id();
+#endif
+  switch (prog_id) {
     case PROG_PIXEL_CAMERA_PROVIDER_SERVICE:
     case PROG_SURFACEFLINGER:
       hardened_impl = false;
@@ -509,6 +513,10 @@ __BIONIC_WEAK_FOR_NATIVE_BRIDGE
 __LIBC_HIDDEN__ void __libc_init_malloc(libc_globals* globals) {
 #if !defined(LIBC_STATIC)
   MallocInitImpl(globals);
+#else
+#if defined(BOTH_H_MALLOC_AND_SCUDO)
+  InitNativeAllocatorDispatch(globals);
+#endif
 #endif
   const char* value = getenv("MALLOC_USE_APP_DEFAULTS");
   if (value == nullptr || value[0] == '\0') {

@@ -425,6 +425,18 @@ static constexpr MallocDispatch __scudo_malloc_dispatch __attribute__((unused)) 
 
 static const MallocDispatch* native_allocator_dispatch;
 
+#if defined(IS_DEBUGGABLE_BUILD) && defined(__aarch64__)
+static bool is_VA_39_bit() {
+  size_t size = 1L << 40;
+  void* addr = mmap(nullptr, size, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  if (addr == MAP_FAILED) {
+    return true;
+  }
+  munmap(addr, size);
+  return false;
+}
+#endif
+
 static bool is_hardened_malloc_disabled_via_proc_attr() {
   if (getuid() < AID_APP_START) {
     // this method of disabling hardened_malloc is used only for unprivileged app processes
@@ -456,6 +468,10 @@ static bool is_hardened_malloc_disabled_via_proc_attr() {
 
 void InitNativeAllocatorDispatch(libc_globals* globals) {
   bool hardened_impl = true;
+#if defined(IS_DEBUGGABLE_BUILD) && defined(__aarch64__)
+  hardened_impl = !is_VA_39_bit();
+#endif
+
   int prog_id = 0;
 #if !defined(LIBC_STATIC)
   prog_id = get_prog_id();

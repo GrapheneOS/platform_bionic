@@ -35,11 +35,13 @@
 // is set to a non-zero value.
 
 #include <errno.h>
+#include <fcntl.h>
 #include <stdint.h>
 #include <stdio.h>
 
 #include <platform/bionic/malloc.h>
 #include <private/ScopedPthreadMutexLocker.h>
+#include "private/android_filesystem_config.h"
 #include <private/bionic_config.h>
 #include <private/bionic_defs.h>
 
@@ -423,19 +425,54 @@ static constexpr MallocDispatch __scudo_malloc_dispatch __attribute__((unused)) 
 
 static const MallocDispatch* native_allocator_dispatch;
 
+static bool is_hardened_malloc_disabled_via_proc_attr() {
+  if (getuid() < AID_APP_START) {
+    // this method of disabling hardened_malloc is used only for unprivileged app processes
+    return false;
+  }
+
+  int fd = open("/proc/self/attr/grapheneos_flags", O_RDONLY | O_CLOEXEC);
+  if (fd < 0) {
+    async_safe_format_log(ANDROID_LOG_WARN, "malloc_common", "unable to open grapheneos_flags: %#m");
+    return false;
+  }
+  char buf[32]{};
+  ssize_t rc = TEMP_FAILURE_RETRY(read(fd, buf, sizeof(buf)));
+  bool res = false;
+  if (rc > 0) {
+    uint64_t flags = 0;
+    if (sscanf(buf, "%" PRIx64, &flags) == 1) {
+      const uint64_t FLAG_DISABLE_HARDENED_MALLOC = 1 << 10;
+      res = flags & FLAG_DISABLE_HARDENED_MALLOC;
+    } else {
+      async_safe_format_log(ANDROID_LOG_WARN, "malloc_common", "unable to sscanf grapheneos_flags");
+    }
+  } else {
+    async_safe_format_log(ANDROID_LOG_WARN, "malloc_common", "unable to read grapheneos_flags");
+  }
+  close(fd);
+  return res;
+}
+
 void InitNativeAllocatorDispatch(libc_globals* globals) {
   bool hardened_impl = true;
   switch (get_prog_id()) {
-      case PROG_PIXEL_CAMERA_PROVIDER_SERVICE:
-      case PROG_SURFACEFLINGER:
-        hardened_impl = false;
-        break;
-      default:
+    case PROG_PIXEL_CAMERA_PROVIDER_SERVICE:
+    case PROG_SURFACEFLINGER:
+      hardened_impl = false;
+      break;
+    default: {
+      if (hardened_impl) {
         if (globals->flags & GLOBAL_FLAG_DISABLE_HARDENED_MALLOC) {
-            hardened_impl = false;
-        } else {
-            hardened_impl = getenv("DISABLE_HARDENED_MALLOC") == nullptr;
+          hardened_impl = false;
+        } else if (getenv("USE_HARDENED_MALLOC") == nullptr) {
+          hardened_impl = getenv("DISABLE_HARDENED_MALLOC") == nullptr;
+          if (hardened_impl) {
+            hardened_impl = !is_hardened_malloc_disabled_via_proc_attr();
+          }
         }
+      }
+    }
   }
 
   const MallocDispatch* table = hardened_impl ?
@@ -443,6 +480,7 @@ void InitNativeAllocatorDispatch(libc_globals* globals) {
     &__scudo_malloc_dispatch;
 
   if (!hardened_impl) {
+    async_safe_format_log(ANDROID_LOG_INFO, "malloc_common", "using scudo instead of hardened_malloc");
     globals->malloc_dispatch_table = __scudo_malloc_dispatch;
     globals->current_dispatch_table = &globals->malloc_dispatch_table;
     globals->default_dispatch_table = &globals->malloc_dispatch_table;

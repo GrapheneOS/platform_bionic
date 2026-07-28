@@ -53,6 +53,7 @@
 #define SERIAL_VALUE_LEN(serial) ((serial) >> 24)
 #define APPCOMPAT_PREFIX "ro.appcompat_override."
 #define APPCOMPAT_OVERRIDE_ENV_VAR "BIONIC_APPCOMPAT_OVERRIDE"
+#define EXTENDED_OVERRIDE_ENV_VAR "GOS_HIDE_CARRIER_INFO_PROP_OVERRIDE"
 
 static bool is_dir(const char* pathname) {
   struct stat info;
@@ -79,6 +80,11 @@ bool SystemProperties::Init(const char* filename) {
 
   if (getenv(APPCOMPAT_OVERRIDE_ENV_VAR) != nullptr) {
     use_appcompat_override_ = true;
+  }
+
+  if (getenv(EXTENDED_OVERRIDE_ENV_VAR) != nullptr) {
+    use_appcompat_override_ = true;
+    use_extended_override_ = true;
   }
 
   initialized_ = true;
@@ -151,6 +157,33 @@ bool SystemProperties::EnableOverrides() {
   return true;
 }
 
+bool SystemProperties::EnableExtendedOverrides() {
+  CHECK(initialized_);
+  use_appcompat_override_ = true;
+  use_extended_override_ = true;
+  putenv(const_cast<char*>(APPCOMPAT_OVERRIDE_ENV_VAR "=1"));
+  putenv(const_cast<char*>(EXTENDED_OVERRIDE_ENV_VAR "=1"));
+  return true;
+}
+
+static const char* const kHideCarrierInfoDeniedProps[] = {
+    "gsm.sim.operator.alpha",
+    "gsm.sim.operator.numeric",
+    "gsm.sim.operator.iso-country",
+    "gsm.operator.alpha",
+    "gsm.operator.numeric",
+    "gsm.operator.iso-country",
+    "gsm.operator.isroaming",
+    "gsm.sim.state",
+};
+
+static bool is_hide_carrier_info_denied(const char* name) {
+  for (const char* denied : kHideCarrierInfoDeniedProps) {
+    if (strcmp(name, denied) == 0) return true;
+  }
+  return false;
+}
+
 uint32_t SystemProperties::AreaSerial() {
   if (!initialized_) {
     return -1;
@@ -167,6 +200,10 @@ uint32_t SystemProperties::AreaSerial() {
 
 const prop_info* SystemProperties::Find(const char* name) {
   if (!initialized_) {
+    return nullptr;
+  }
+
+  if (use_extended_override_ && is_hide_carrier_info_denied(name)) {
     return nullptr;
   }
 
@@ -428,6 +465,11 @@ int SystemProperties::Add(const char* name, unsigned int namelen, const char* va
       CHECK(getpid() == 1 || getuid() == 0);
       atomic_thread_fence(memory_order_release);
       memcpy(other_pi->value, value, valuelen + 1);
+      // the high byte of serial encodes value length, we need to update it so readers
+      // (that use SERIAL_VALUE_LEN) return the full overridden string.
+      uint32_t old_serial = atomic_load_explicit(&other_pi->serial, memory_order_relaxed);
+      uint32_t new_serial = (valuelen << 24) | (old_serial & 0x00ffffff);
+      atomic_store_explicit(&other_pi->serial, new_serial, memory_order_release);
     }
   }
 

@@ -53,6 +53,7 @@ class SystemProperties {
 
   bool Init(const char* filename);
   bool EnableOverrides();
+  bool EnableExtendedOverrides();
   bool AreaInit(const char* filename, bool* fsetxattr_failed);
   bool AreaInit(const char* filename, bool* fsetxattr_failed, bool load_default_path);
   uint32_t AreaSerial();
@@ -91,6 +92,7 @@ class SystemProperties {
 
   bool initialized_;
   bool use_appcompat_override_;
+  bool use_extended_override_;
   PropertiesFilename properties_filename_;
   PropertiesFilename appcompat_filename_;
 };

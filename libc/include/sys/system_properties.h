@@ -240,6 +240,8 @@ int __system_property_update(prop_info* _Nonnull __pi, const char* _Nonnull __va
  * Available since API level 35.
  */
 int __system_properties_zygote_reload(void) __INTRODUCED_IN(35);
+
+int __system_properties_enable_extended_override(void);
 #endif
 
 /**

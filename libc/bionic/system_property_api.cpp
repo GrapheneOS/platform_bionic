@@ -135,3 +135,8 @@ int __system_properties_zygote_reload(void) {
   CHECK(getpid() == gettid());
   return system_properties.EnableOverrides() ? 0 : -1;
 }
+
+__BIONIC_WEAK_FOR_NATIVE_BRIDGE
+int __system_properties_enable_extended_override(void) {
+  return system_properties.EnableExtendedOverrides() ? 0 : -1;
+}

@@ -1612,6 +1612,7 @@ LIBC_V { # introduced=35
     tzfree;
     wcsrtombs_l;
     __system_properties_zygote_reload; # apex
+    __system_properties_enable_extended_override; # apex
 } LIBC_U;
 
 LIBC_36 { # introduced=36

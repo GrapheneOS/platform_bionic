@@ -227,6 +227,71 @@ TEST(properties, __system_property_getprop_appcompat) {
 #endif  // __BIONIC__
 }
 
+TEST(properties, __system_property_add_extended_override) {
+#if defined(__BIONIC__)
+  SystemPropertiesTest system_properties;
+  ASSERT_TRUE(system_properties.valid());
+
+  ASSERT_EQ(0, system_properties.Add("gsm.sim.operator.numeric", 24, "123456", 6));
+  ASSERT_EQ(0, system_properties.Add("ro.other.prop", 13, "value", 5));
+
+  char propvalue[PROP_VALUE_MAX];
+
+  // before enabling: denied prop is readable
+  ASSERT_EQ(6, system_properties.Get("gsm.sim.operator.numeric", propvalue));
+  ASSERT_STREQ(propvalue, "123456");
+  ASSERT_NE(nullptr, system_properties.Find("gsm.sim.operator.numeric"));
+
+  system_properties.EnableExtendedOverrides();
+
+  // after enabling: denied prop hidden from Find and Get
+  ASSERT_EQ(nullptr, system_properties.Find("gsm.sim.operator.numeric"));
+  ASSERT_EQ(0, system_properties.Get("gsm.sim.operator.numeric", propvalue));
+  ASSERT_STREQ(propvalue, "");
+
+  // non-denied prop unaffected
+  ASSERT_EQ(5, system_properties.Get("ro.other.prop", propvalue));
+  ASSERT_STREQ(propvalue, "value");
+#else   // __BIONIC__
+  GTEST_SKIP() << "bionic-only test";
+#endif  // __BIONIC__
+}
+
+TEST(properties, __system_property_update_extended_override_denylist) {
+#if defined(__BIONIC__)
+  SystemPropertiesTest system_properties;
+  ASSERT_TRUE(system_properties.valid());
+
+  ASSERT_EQ(0, system_properties.Add("gsm.sim.operator.numeric", 24, "123456", 6));
+  ASSERT_EQ(0, system_properties.Add("gsm.version.baseband", 20, "v1", 2));
+
+  // capture prop_info* before enabling override (Find returns nullptr afterward for denied props)
+  const prop_info* denied_pi = system_properties.Find("gsm.sim.operator.numeric");
+  ASSERT_NE(nullptr, denied_pi);
+  const prop_info* allowed_pi = system_properties.Find("gsm.version.baseband");
+  ASSERT_NE(nullptr, allowed_pi);
+
+  system_properties.EnableExtendedOverrides();
+
+  // update underlying values (as init would)
+  system_properties.Update(const_cast<prop_info*>(denied_pi), "654321", 6);
+  system_properties.Update(const_cast<prop_info*>(allowed_pi), "v2", 2);
+
+  char propvalue[PROP_VALUE_MAX];
+
+  // denied prop still hidden after update
+  ASSERT_EQ(nullptr, system_properties.Find("gsm.sim.operator.numeric"));
+  ASSERT_EQ(0, system_properties.Get("gsm.sim.operator.numeric", propvalue));
+  ASSERT_STREQ(propvalue, "");
+
+  // allowed prop updated normally
+  ASSERT_EQ(2, system_properties.Get("gsm.version.baseband", propvalue));
+  ASSERT_STREQ(propvalue, "v2");
+#else   // __BIONIC__
+  GTEST_SKIP() << "bionic-only test";
+#endif  // __BIONIC__
+}
+
 TEST(properties, __system_property_update) {
 #if defined(__BIONIC__)
     SystemPropertiesTest system_properties;

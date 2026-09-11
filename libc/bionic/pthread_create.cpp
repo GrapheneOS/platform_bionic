@@ -331,6 +331,8 @@ ThreadMapping __allocate_thread_mapping(size_t stack_size, size_t stack_guard_si
   // than the space originally wasted by pthread_internal_t for compatibility.
   result.stack_top = space + stack_guard_size + stack_size - arc4random_uniform(sizeof(pthread_internal_t));
   result.stack_top = __builtin_align_down(result.stack_top, 16);
+
+  result.stack_size = stack_size;
   return result;
 }
 
@@ -390,6 +392,7 @@ static int __allocate_thread(pthread_attr_t* attr, bionic_tcb** tcbp, void** chi
   thread->mmap_size_unguarded = mapping.mmap_size_unguarded;
   thread->stack_top = reinterpret_cast<uintptr_t>(stack_top);
   thread->stack_bottom = reinterpret_cast<uintptr_t>(attr->stack_base);
+  thread->stack_size = mapping.stack_size;
 
   *tcbp = tcb;
   *child_stack = stack_top;

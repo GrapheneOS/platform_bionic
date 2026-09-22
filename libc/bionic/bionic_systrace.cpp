@@ -29,6 +29,8 @@
 #include <async_safe/log.h>
 #include <cutils/trace.h> // For ATRACE_TAG_BIONIC.
 
+#define WRITE_OFFSET   32
+
 static Lock g_lock;
 static CachedProperty g_debug_atrace_tags_enableflags("debug.atrace.tags.enableflags");
 static uint64_t g_tags;
@@ -59,9 +61,15 @@ static void trace_begin_internal(const char* message) {
     return;
   }
 
+  // If bionic tracing has been enabled, then write the message to the
+  // kernel trace_marker.
+  int length = strlen(message);
+  char buf[length + WRITE_OFFSET];
+  size_t len = async_safe_format_buffer(buf, length + WRITE_OFFSET, "B|%d|%s", getpid(), message);
+
   // Tracing may stop just after checking property and before writing the message.
   // So the write is acceptable to fail. See b/20666100.
-  async_safe_format_fd(trace_marker_fd, "B|%d|%s", getpid(), message);
+  TEMP_FAILURE_RETRY(write(trace_marker_fd, buf, len));
 }
 
 void bionic_trace_begin(const char* message) {

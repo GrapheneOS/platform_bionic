@@ -228,7 +228,10 @@ ThreadMapping __allocate_thread_mapping(size_t stack_size, size_t stack_guard_si
   const StaticTlsLayout& layout = __libc_shared_globals()->static_tls_layout;
 
   // Address calculated using stack_size is passed to mprotect later, so make it page-aligned.
+  const size_t unaligned_stack_size = stack_size;
   stack_size = __builtin_align_up(stack_size, page_size());
+  if (stack_size < unaligned_stack_size) return {};
+
   // Round up static TLS layout size to be multiple of page size as well.
   size_t static_tls_layout_size = __builtin_align_up(layout.size(), page_size());
 

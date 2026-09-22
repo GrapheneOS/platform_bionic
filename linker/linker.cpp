@@ -906,7 +906,7 @@ bool ZipArchiveCache::get_or_open(const char* zip_path, int zip_fd, ZipArchiveHa
     return true;
   }
 
-  int fd = zip_fd != -1 ? dup(zip_fd) : TEMP_FAILURE_RETRY(open(zip_path, O_RDONLY | O_CLOEXEC));
+  int fd = zip_fd != -1 ? fcntl(zip_fd, F_DUPFD_CLOEXEC, 0) : TEMP_FAILURE_RETRY(open(zip_path, O_RDONLY | O_CLOEXEC));
   if (fd == -1) {
     return false;
   }
@@ -960,7 +960,7 @@ static int open_library_in_zipfile(ZipArchiveCache* zip_archive_cache,
   int fd;
   if (!strncmp("/gmscompat_fd_", zip_path, strlen("/gmscompat_fd_")) &&
         sscanf(zip_path, "/gmscompat_fd_%d", &fd) == 1) {
-    fd = dup(fd);
+    fd = fcntl(fd, F_DUPFD_CLOEXEC, 0);
   } else {
     fd = TEMP_FAILURE_RETRY(open(zip_path, O_RDONLY | O_CLOEXEC));
   }

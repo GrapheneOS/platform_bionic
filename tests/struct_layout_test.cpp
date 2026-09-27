@@ -30,7 +30,7 @@ void tests(CheckSize check_size, CheckOffset check_offset) {
 #define CHECK_OFFSET(name, field, offset) \
     check_offset(#name, #field, offsetof(name, field), offset)
 #ifdef __LP64__
-  CHECK_SIZE(pthread_internal_t, 832);
+  CHECK_SIZE(pthread_internal_t, 840);
   CHECK_OFFSET(pthread_internal_t, next, 0);
   CHECK_OFFSET(pthread_internal_t, prev, 8);
   CHECK_OFFSET(pthread_internal_t, tid, 16);
@@ -51,14 +51,15 @@ void tests(CheckSize check_size, CheckOffset check_offset) {
   CHECK_OFFSET(pthread_internal_t, mmap_base_unguarded, 192);
   CHECK_OFFSET(pthread_internal_t, mmap_size_unguarded, 200);
   CHECK_OFFSET(pthread_internal_t, vma_name_buffer, 208);
-  CHECK_OFFSET(pthread_internal_t, thread_local_dtors, 240);
-  CHECK_OFFSET(pthread_internal_t, current_dlerror, 248);
-  CHECK_OFFSET(pthread_internal_t, dlerror_buffer, 256);
-  CHECK_OFFSET(pthread_internal_t, bionic_tls, 768);
-  CHECK_OFFSET(pthread_internal_t, errno_value, 776);
-  CHECK_OFFSET(pthread_internal_t, bionic_tcb, 784);
-  CHECK_OFFSET(pthread_internal_t, stack_mte_ringbuffer_vma_name_buffer, 792);
-  CHECK_OFFSET(pthread_internal_t, should_allocate_stack_mte_ringbuffer, 824);
+  CHECK_OFFSET(pthread_internal_t, stack_size, 240);
+  CHECK_OFFSET(pthread_internal_t, thread_local_dtors, 248);
+  CHECK_OFFSET(pthread_internal_t, current_dlerror, 256);
+  CHECK_OFFSET(pthread_internal_t, dlerror_buffer, 264);
+  CHECK_OFFSET(pthread_internal_t, bionic_tls, 776);
+  CHECK_OFFSET(pthread_internal_t, errno_value, 784);
+  CHECK_OFFSET(pthread_internal_t, bionic_tcb, 792);
+  CHECK_OFFSET(pthread_internal_t, stack_mte_ringbuffer_vma_name_buffer, 800);
+  CHECK_OFFSET(pthread_internal_t, should_allocate_stack_mte_ringbuffer, 832);
   CHECK_SIZE(bionic_tls, 4016);
   CHECK_OFFSET(bionic_tls, key_data, 0);
   CHECK_OFFSET(bionic_tls, locale, 2080);
@@ -75,7 +76,7 @@ void tests(CheckSize check_size, CheckOffset check_offset) {
   CHECK_OFFSET(bionic_tls, bionic_systrace_enabled, 4009);
   CHECK_OFFSET(bionic_tls, padding, 4010);
 #else
-  CHECK_SIZE(pthread_internal_t, 712);
+  CHECK_SIZE(pthread_internal_t, 716);
   CHECK_OFFSET(pthread_internal_t, next, 0);
   CHECK_OFFSET(pthread_internal_t, prev, 4);
   CHECK_OFFSET(pthread_internal_t, tid, 8);
@@ -96,14 +97,15 @@ void tests(CheckSize check_size, CheckOffset check_offset) {
   CHECK_OFFSET(pthread_internal_t, mmap_base_unguarded, 104);
   CHECK_OFFSET(pthread_internal_t, mmap_size_unguarded, 108);
   CHECK_OFFSET(pthread_internal_t, vma_name_buffer, 112);
-  CHECK_OFFSET(pthread_internal_t, thread_local_dtors, 144);
-  CHECK_OFFSET(pthread_internal_t, current_dlerror, 148);
-  CHECK_OFFSET(pthread_internal_t, dlerror_buffer, 152);
-  CHECK_OFFSET(pthread_internal_t, bionic_tls, 664);
-  CHECK_OFFSET(pthread_internal_t, errno_value, 668);
-  CHECK_OFFSET(pthread_internal_t, bionic_tcb, 672);
-  CHECK_OFFSET(pthread_internal_t, stack_mte_ringbuffer_vma_name_buffer, 676);
-  CHECK_OFFSET(pthread_internal_t, should_allocate_stack_mte_ringbuffer, 708);
+  CHECK_OFFSET(pthread_internal_t, stack_size, 144);
+  CHECK_OFFSET(pthread_internal_t, thread_local_dtors, 148);
+  CHECK_OFFSET(pthread_internal_t, current_dlerror, 152);
+  CHECK_OFFSET(pthread_internal_t, dlerror_buffer, 156);
+  CHECK_OFFSET(pthread_internal_t, bionic_tls, 668);
+  CHECK_OFFSET(pthread_internal_t, errno_value, 672);
+  CHECK_OFFSET(pthread_internal_t, bionic_tcb, 676);
+  CHECK_OFFSET(pthread_internal_t, stack_mte_ringbuffer_vma_name_buffer, 680);
+  CHECK_OFFSET(pthread_internal_t, should_allocate_stack_mte_ringbuffer, 712);
   CHECK_SIZE(bionic_tls, 2892);
   CHECK_OFFSET(bionic_tls, key_data, 0);
   CHECK_OFFSET(bionic_tls, locale, 1040);

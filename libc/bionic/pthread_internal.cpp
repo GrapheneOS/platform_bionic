@@ -226,7 +226,7 @@ bool __pthread_internal_remap_stack_with_mte() {
   }
   for (pthread_internal_t* t = g_thread_list; t != nullptr; t = t->next) {
     if (t->terminating || t->is_main()) continue;
-    if (mprotect(t->mmap_base_unguarded, t->mmap_size_unguarded,
+    if (t->stack_size && mprotect(t->mmap_base_unguarded, t->stack_size,
                  PROT_READ | PROT_WRITE | PROT_MTE)) {
       async_safe_fatal("error: failed to set PROT_MTE on thread: %d", t->tid);
     }

@@ -168,6 +168,8 @@ class pthread_internal_t {
   size_t mmap_size_unguarded;
   char vma_name_buffer[32];
 
+  size_t stack_size;
+
   thread_local_dtor* thread_local_dtors;
 
   /*
@@ -198,6 +200,7 @@ struct ThreadMapping {
   char* static_tls;
   char* stack_base;
   char* stack_top;
+  size_t stack_size;
   char* libgen_buffers;
 };
 

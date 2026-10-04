@@ -344,6 +344,26 @@ static bool __is_unsafe_environment_variable(const char* name) {
   return false;
 }
 
+static bool __is_executed_by_init() {
+  int fd = TEMP_FAILURE_RETRY(open("/proc/self/attr/prev", O_RDONLY | O_CLOEXEC));
+  if (fd == -1) {
+    return false;
+  }
+  char buf[32] = {};
+  ssize_t rc = TEMP_FAILURE_RETRY(read(fd, buf, sizeof(buf) - 1));
+  close(fd);
+  if (rc <= 0) {
+    return false;
+  }
+  static constexpr char kInitContext[] = "u:r:init:s0";
+  for (size_t i = 0; i < sizeof(kInitContext); ++i) {
+    if (buf[i] != kInitContext[i]) {
+      return false;
+    }
+  }
+  return true;
+}
+
 static void __sanitize_environment_variables(char** env) {
   char** src = env;
   char** dst = env;
@@ -353,6 +373,9 @@ static void __sanitize_environment_variables(char** env) {
     }
     // Remove various unsafe environment variables if we're loading a setuid program.
     if (__is_unsafe_environment_variable(src[0])) {
+      continue;
+    }
+    if (env_match(src[0], "DISABLE_HARDENED_MALLOC") != nullptr && !__is_executed_by_init()) {
       continue;
     }
     dst[0] = src[0];

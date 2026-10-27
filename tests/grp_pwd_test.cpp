@@ -231,6 +231,14 @@ TEST(pwd, getpwnam_non_exist) {
   expect_no_passwd_name("u0_a9999_ext");
   expect_no_passwd_name("u0_a9999_ext_cache");
   expect_no_passwd_name("all_a9999");
+
+  // OEM names must be "oem_" followed only by the decimal id.
+  expect_no_passwd_name("oem_2900x");
+  expect_no_passwd_name("oem_2900_");
+  expect_no_passwd_name("oem_+2900");
+  expect_no_passwd_name("oem_ 2900");
+  expect_no_passwd_name("oem_");
+  expect_no_passwd_name("oem_4294969196");  // 2^32 + 2900
 }
 
 TEST(pwd, getpwnam_u0_app_ids) {
@@ -722,6 +730,14 @@ TEST(grp, getgrnam_non_exist) {
   expect_no_passwd_id(999);   // End of the system reserved range, unallocated.
   expect_no_passwd_id(1999);  // End of the system reserved range, unallocated.
   expect_no_passwd_id(2899);  // End of the system reserved range, unallocated.
+
+  // OEM names must be "oem_" followed only by the decimal id.
+  expect_no_group_name("oem_2900x");
+  expect_no_group_name("oem_2900_");
+  expect_no_group_name("oem_+2900");
+  expect_no_group_name("oem_ 2900");
+  expect_no_group_name("oem_");
+  expect_no_group_name("oem_4294969196");  // 2^32 + 2900
 }
 
 TEST(grp, getgrnam_u0_app_ids) {

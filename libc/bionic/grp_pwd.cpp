@@ -32,6 +32,7 @@
 #include <ctype.h>
 #include <errno.h>
 #include <grp.h>
+#include <limits.h>
 #include <mntent.h>
 #include <pthread.h>
 #include <pwd.h>
@@ -443,11 +444,15 @@ static bool is_oem_id(id_t) {
 
 // Translate an OEM name to the corresponding user/group id.
 static id_t oem_id_from_name(const char* name) {
-  unsigned int id;
-  if (sscanf(name, "oem_%u", &id) != 1) {
+  if (strncmp(name, "oem_", 4) != 0 || !isdigit(name[4])) {
     return 0;
   }
-  if (!is_oem_id(id)) {
+  char* end;
+  unsigned long long id = strtoull(name + 4, &end, 10);
+  if (*end != '\0' || id > UINT_MAX) {
+    return 0;
+  }
+  if (!is_oem_id(static_cast<id_t>(id))) {
     return 0;
   }
   return static_cast<id_t>(id);

@@ -60,6 +60,8 @@ size_t hooks_malloc_usable_size(void* pointer);
 void* hooks_malloc(size_t size);
 int hooks_malloc_info(int options, FILE* fp);
 void hooks_free(void* pointer);
+void hooks_free_sized(void* pointer, size_t size);
+void hooks_free_aligned_sized(void* pointer, size_t alignment, size_t size);
 void* hooks_memalign(size_t alignment, size_t bytes);
 void* hooks_aligned_alloc(size_t alignment, size_t bytes);
 void* hooks_realloc(void* pointer, size_t bytes);
@@ -136,6 +138,26 @@ void* hooks_malloc(size_t size) {
 void hooks_free(void* pointer) {
   if (__free_hook != nullptr && __free_hook != default_free_hook) {
     return __free_hook(pointer, __builtin_return_address(0));
+  }
+  return g_dispatch->free(pointer);
+}
+
+void hooks_free_sized(void* pointer, size_t size) {
+  if (__free_hook != nullptr && __free_hook != default_free_hook) {
+    return __free_hook(pointer, __builtin_return_address(0));
+  }
+  if (g_dispatch->free_sized != nullptr) {
+    return g_dispatch->free_sized(pointer, size);
+  }
+  return g_dispatch->free(pointer);
+}
+
+void hooks_free_aligned_sized(void* pointer, size_t alignment, size_t size) {
+  if (__free_hook != nullptr && __free_hook != default_free_hook) {
+    return __free_hook(pointer, __builtin_return_address(0));
+  }
+  if (g_dispatch->free_aligned_sized != nullptr) {
+    return g_dispatch->free_aligned_sized(pointer, alignment, size);
   }
   return g_dispatch->free(pointer);
 }

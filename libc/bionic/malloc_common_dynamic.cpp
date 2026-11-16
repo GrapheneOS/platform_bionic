@@ -136,6 +136,26 @@ static bool InitMallocFunction(void* malloc_impl_handler, FunctionType* func, co
   return true;
 }
 
+static void FallbackDispatchFreeSized(void* mem, size_t) {
+  __libc_globals->malloc_dispatch_table.free(mem);
+}
+
+static void FallbackDispatchFreeAlignedSized(void* mem, size_t, size_t) {
+  __libc_globals->malloc_dispatch_table.free(mem);
+}
+
+template <typename FunctionType>
+static void InitOptionalMallocFunction(void* malloc_impl_handler, FunctionType* func,
+                                       const char* prefix, const char* suffix,
+                                       FunctionType fallback) {
+  char symbol[128];
+  snprintf(symbol, sizeof(symbol), "%s_%s", prefix, suffix);
+  *func = reinterpret_cast<FunctionType>(dlsym(malloc_impl_handler, symbol));
+  if (*func == nullptr) {
+    *func = fallback;
+  }
+}
+
 static bool InitMallocFunctions(void* impl_handler, MallocDispatch* table, const char* prefix) {
   if (!InitMallocFunction<MallocFree>(impl_handler, &table->free, prefix, "free")) {
     return false;
@@ -198,6 +218,11 @@ static bool InitMallocFunctions(void* impl_handler, MallocDispatch* table, const
     return false;
   }
 #endif
+  InitOptionalMallocFunction<MallocFreeSized>(impl_handler, &table->free_sized, prefix,
+                                              "free_sized", FallbackDispatchFreeSized);
+  InitOptionalMallocFunction<MallocFreeAlignedSized>(impl_handler, &table->free_aligned_sized,
+                                                     prefix, "free_aligned_sized",
+                                                     FallbackDispatchFreeAlignedSized);
 
   return true;
 }

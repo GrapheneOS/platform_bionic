@@ -176,6 +176,8 @@ MallocDispatch MallocDebugTest::dispatch = {
     mallopt,
     aligned_alloc,
     malloc_info,
+    free_sized,
+    free_aligned_sized,
 };
 
 std::string ShowDiffs(uint8_t* a, uint8_t* b, size_t size) {

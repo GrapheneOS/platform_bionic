@@ -5,7 +5,9 @@ LIBC_MALLOC_DEBUG {
     debug_dump_heap;
     debug_finalize;
     debug_free;
+    debug_free_aligned_sized;
     debug_free_malloc_leak_info;
+    debug_free_sized;
     debug_get_malloc_leak_info;
     debug_initialize;
     debug_mallinfo;

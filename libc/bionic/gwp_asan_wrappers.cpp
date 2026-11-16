@@ -91,6 +91,30 @@ void gwp_asan_free(void* mem) {
   prev_dispatch->free(mem);
 }
 
+void gwp_asan_free_sized(void* mem, size_t size) {
+  if (__predict_false(GuardedAlloc.pointerIsMine(mem))) {
+    GuardedAlloc.deallocate(mem);
+    return;
+  }
+  if (__predict_true(prev_dispatch->free_sized != nullptr)) {
+    prev_dispatch->free_sized(mem, size);
+  } else {
+    prev_dispatch->free(mem);
+  }
+}
+
+void gwp_asan_free_aligned_sized(void* mem, size_t alignment, size_t size) {
+  if (__predict_false(GuardedAlloc.pointerIsMine(mem))) {
+    GuardedAlloc.deallocate(mem);
+    return;
+  }
+  if (__predict_true(prev_dispatch->free_aligned_sized != nullptr)) {
+    prev_dispatch->free_aligned_sized(mem, alignment, size);
+  } else {
+    prev_dispatch->free(mem);
+  }
+}
+
 void* gwp_asan_malloc(size_t bytes) {
   if (__predict_false(GuardedAlloc.shouldSample())) {
     if (void* result = GuardedAlloc.allocate(bytes)) {
@@ -181,6 +205,8 @@ const MallocDispatch gwp_asan_dispatch __attribute__((unused)) = {
     Malloc(mallopt),
     Malloc(aligned_alloc),
     Malloc(malloc_info),
+    gwp_asan_free_sized,
+    gwp_asan_free_aligned_sized,
 };
 
 bool ShouldGwpAsanSampleProcess(unsigned sample_rate) {

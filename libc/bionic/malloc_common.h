@@ -48,6 +48,8 @@ int __sanitizer_malloc_iterate(uintptr_t base, size_t size,
 void __sanitizer_malloc_disable();
 void __sanitizer_malloc_enable();
 int __sanitizer_malloc_info(int options, FILE* fp);
+void __sanitizer_free_sized(void* mem, size_t size);
+void __sanitizer_free_aligned_sized(void* mem, size_t alignment, size_t size);
 
 __END_DECLS
 

@@ -88,12 +88,32 @@ extern "C" void free(void* mem) {
   }
 }
 
-extern "C" void free_sized(void* mem, size_t) {
-  free(mem);
+extern "C" void free_sized(void* mem, size_t size) {
+  auto dispatch_table = GetDispatchTable();
+  mem = MaybeUntagAndCheckPointer(mem);
+  if (__predict_false(dispatch_table != nullptr)) {
+    if (__predict_true(dispatch_table->free_sized != nullptr)) {
+      dispatch_table->free_sized(mem, size);
+    } else {
+      dispatch_table->free(mem);
+    }
+  } else {
+    Malloc(free_sized)(mem, size);
+  }
 }
 
-extern "C" void free_aligned_sized(void* mem, size_t, size_t) {
-  free(mem);
+extern "C" void free_aligned_sized(void* mem, size_t alignment, size_t size) {
+  auto dispatch_table = GetDispatchTable();
+  mem = MaybeUntagAndCheckPointer(mem);
+  if (__predict_false(dispatch_table != nullptr)) {
+    if (__predict_true(dispatch_table->free_aligned_sized != nullptr)) {
+      dispatch_table->free_aligned_sized(mem, alignment, size);
+    } else {
+      dispatch_table->free(mem);
+    }
+  } else {
+    Malloc(free_aligned_sized)(mem, alignment, size);
+  }
 }
 
 extern "C" struct mallinfo mallinfo() {
@@ -368,6 +388,14 @@ extern "C" int __sanitizer_malloc_info(int, FILE*) {
   errno = ENOTSUP;
   return -1;
 }
+
+extern "C" void __sanitizer_free_sized(void* mem, size_t) {
+  __sanitizer_free(mem);
+}
+
+extern "C" void __sanitizer_free_aligned_sized(void* mem, size_t, size_t) {
+  __sanitizer_free(mem);
+}
 #endif
 // =============================================================================
 
@@ -393,6 +421,8 @@ static constexpr MallocDispatch __libc_malloc_default_dispatch __attribute__((un
     Malloc(mallopt),
     Malloc(aligned_alloc),
     Malloc(malloc_info),
+    Malloc(free_sized),
+    Malloc(free_aligned_sized),
 };
 
 #if defined(BOTH_H_MALLOC_AND_SCUDO)
@@ -421,6 +451,8 @@ static constexpr MallocDispatch __scudo_malloc_dispatch __attribute__((unused)) 
     ScudoMalloc(mallopt),
     ScudoMalloc(aligned_alloc),
     ScudoMalloc(malloc_info),
+    ScudoMalloc(free_sized),
+    ScudoMalloc(free_aligned_sized),
 };
 
 static const MallocDispatch* native_allocator_dispatch;

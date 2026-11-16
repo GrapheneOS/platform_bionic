@@ -180,6 +180,8 @@ void debug_free_malloc_leak_info(uint8_t* info);
 size_t debug_malloc_usable_size(void* pointer);
 void* debug_malloc(size_t size);
 void debug_free(void* pointer);
+void debug_free_sized(void* pointer, size_t size);
+void debug_free_aligned_sized(void* pointer, size_t alignment, size_t size);
 void* debug_aligned_alloc(size_t alignment, size_t size);
 void* debug_memalign(size_t alignment, size_t bytes);
 void* debug_realloc(void* pointer, size_t bytes);
@@ -721,6 +723,26 @@ void debug_free(void* pointer) {
                                  .start_ns = result.GetStartTimeNS(),
                                  .end_ns = result.GetEndTimeNS()};
   }
+}
+
+void debug_free_sized(void* pointer, size_t size) {
+  if (DebugCallsDisabled() || pointer == nullptr) {
+    if (g_dispatch->free_sized != nullptr) {
+      return g_dispatch->free_sized(pointer, size);
+    }
+    return g_dispatch->free(pointer);
+  }
+  debug_free(pointer);
+}
+
+void debug_free_aligned_sized(void* pointer, size_t alignment, size_t size) {
+  if (DebugCallsDisabled() || pointer == nullptr) {
+    if (g_dispatch->free_aligned_sized != nullptr) {
+      return g_dispatch->free_aligned_sized(pointer, alignment, size);
+    }
+    return g_dispatch->free(pointer);
+  }
+  debug_free(pointer);
 }
 
 void* debug_memalign(size_t alignment, size_t bytes) {

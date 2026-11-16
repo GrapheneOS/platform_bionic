@@ -29,13 +29,13 @@ namespace std {
 void* operator new(std::size_t);
 void* operator new(std::size_t, const std::nothrow_t&);
 void operator delete(void*) throw();
-// TODO: void operator delete(void*, std::size_t) throw();
+void operator delete(void*, std::size_t) throw();
 void operator delete(void*, const std::nothrow_t&) throw();
 
 void* operator new[](std::size_t);
 void* operator new[](std::size_t, const std::nothrow_t&);
 void operator delete[](void*) throw();
-// TODO: void operator delete[](void*, std::size_t) throw();
+void operator delete[](void*, std::size_t) throw();
 void operator delete[](void*, const std::nothrow_t&) throw();
 
 // These four are not replaceable, so should be inlined.

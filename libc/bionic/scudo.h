@@ -39,6 +39,15 @@ __BEGIN_DECLS
 void* scudo_aligned_alloc(size_t, size_t);
 void* scudo_calloc(size_t, size_t);
 void scudo_free(void*);
+static inline void scudo_free_sized(void* ptr, size_t size) {
+  (void)size;
+  scudo_free(ptr);
+}
+static inline void scudo_free_aligned_sized(void* ptr, size_t alignment, size_t size) {
+  (void)alignment;
+  (void)size;
+  scudo_free(ptr);
+}
 struct mallinfo scudo_mallinfo();
 void* scudo_malloc(size_t);
 int scudo_malloc_info(int, FILE*);

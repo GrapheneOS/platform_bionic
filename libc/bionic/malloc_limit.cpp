@@ -47,6 +47,8 @@
 __BEGIN_DECLS
 static void* LimitCalloc(size_t n_elements, size_t elem_size);
 static void LimitFree(void* mem);
+static void LimitFreeSized(void* mem, size_t size);
+static void LimitFreeAlignedSized(void* mem, size_t alignment, size_t size);
 static void* LimitMalloc(size_t bytes);
 static void* LimitMemalign(size_t alignment, size_t bytes);
 static int LimitPosixMemalign(void** memptr, size_t alignment, size_t size);
@@ -90,6 +92,8 @@ static constexpr MallocDispatch __limit_dispatch __attribute__((unused)) = {
     LimitMallopt,
     LimitAlignedAlloc,
     LimitMallocInfo,
+    LimitFreeSized,
+    LimitFreeAlignedSized,
 };
 
 static _Atomic uint64_t gAllocated;
@@ -134,6 +138,34 @@ void LimitFree(void* mem) {
     return dispatch_table->free(mem);
   }
   return Malloc(free)(mem);
+}
+
+static void LimitFreeSized(void* mem, size_t size) {
+  if (mem != nullptr) {
+    atomic_fetch_sub(&gAllocated, LimitUsableSize(mem));
+  }
+  auto dispatch_table = GetDefaultDispatchTable();
+  if (__predict_false(dispatch_table != nullptr)) {
+    if (__predict_true(dispatch_table->free_sized != nullptr)) {
+      return dispatch_table->free_sized(mem, size);
+    }
+    return dispatch_table->free(mem);
+  }
+  return Malloc(free_sized)(mem, size);
+}
+
+static void LimitFreeAlignedSized(void* mem, size_t alignment, size_t size) {
+  if (mem != nullptr) {
+    atomic_fetch_sub(&gAllocated, LimitUsableSize(mem));
+  }
+  auto dispatch_table = GetDefaultDispatchTable();
+  if (__predict_false(dispatch_table != nullptr)) {
+    if (__predict_true(dispatch_table->free_aligned_sized != nullptr)) {
+      return dispatch_table->free_aligned_sized(mem, alignment, size);
+    }
+    return dispatch_table->free(mem);
+  }
+  return Malloc(free_aligned_sized)(mem, alignment, size);
 }
 
 void* LimitMalloc(size_t bytes) {

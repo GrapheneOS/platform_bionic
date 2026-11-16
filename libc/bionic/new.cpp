@@ -54,6 +54,5 @@ void operator delete[](void* p) noexcept { free(p); }
 void operator delete(void* p, const std::nothrow_t&) noexcept { free(p); }
 void operator delete[](void* p, const std::nothrow_t&) noexcept { free(p); }
 
-// TODO: these can use free_sized() once we have it (http://b/284321795).
-void operator delete(void* p, std::size_t) noexcept { free(p); }
-void operator delete[](void* p, std::size_t) noexcept { free(p); }
+void operator delete(void* p, std::size_t size) noexcept { free_sized(p, size); }
+void operator delete[](void* p, std::size_t size) noexcept { free_sized(p, size); }

@@ -4,7 +4,9 @@ LIBC_MALLOC_HOOKS {
     hooks_calloc;
     hooks_finalize;
     hooks_free;
+    hooks_free_aligned_sized;
     hooks_free_malloc_leak_info;
+    hooks_free_sized;
     hooks_get_malloc_leak_info;
     hooks_initialize;
     hooks_mallinfo;

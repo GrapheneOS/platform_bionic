@@ -3,8 +3,12 @@ LIBC_O {
     _ZSt7nothrow; # var
     _ZdaPv; # weak
     _ZdaPvRKSt9nothrow_t; # weak
+    _ZdaPvj; # arm x86 weak
+    _ZdaPvm; # arm64 x86_64 riscv64 weak
     _ZdlPv; # weak
     _ZdlPvRKSt9nothrow_t; # weak
+    _ZdlPvj; # arm x86 weak
+    _ZdlPvm; # arm64 x86_64 riscv64 weak
     _Znaj; # arm x86 weak
     _ZnajRKSt9nothrow_t; # arm x86 weak
     _Znam; # arm64 x86_64 riscv64 weak

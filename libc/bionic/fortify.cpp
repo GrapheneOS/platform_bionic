@@ -249,8 +249,8 @@ extern "C" char* __stpncpy_chk(char* dst, const char* src, size_t len, size_t ds
 // how much we read from "src" during the copy operation.
 char* __stpncpy_chk2(char* dst, const char* src, size_t n, size_t dst_len, size_t src_len) {
   __check_buffer_access("stpncpy", "write into", n, dst_len);
+  char* d = dst;
   if (n != 0) {
-    char* d = dst;
     const char* s = src;
 
     do {
@@ -259,17 +259,19 @@ char* __stpncpy_chk2(char* dst, const char* src, size_t n, size_t dst_len, size_
         __fortify_fatal("stpncpy: detected read past end of %zu-byte buffer", src_len);
       }
 
-      if ((*d++ = *s++) == 0) {
+      if ((*d = *s++) == 0) {
+        char* ret = d;
         // NUL pad the remaining n-1 bytes.
         while (--n != 0) {
-          *d++ = 0;
+          *++d = 0;
         }
-        break;
+        return ret;
       }
+      ++d;
     } while (--n != 0);
   }
 
-  return dst;
+  return d;
 }
 
 // strcat is performance-critical enough that we have assembler __strcat_chk implementations.

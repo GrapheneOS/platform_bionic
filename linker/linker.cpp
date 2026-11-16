@@ -885,6 +885,27 @@ soinfo* find_containing_library(const void* p) {
   return nullptr;
 }
 
+static constexpr const char kGmsCompatFdPrefix[] = "/gmscompat_fd_";
+
+struct ZipArchiveCacheKey {
+  dev_t dev;
+  ino_t ino;
+  std::string path;
+
+  bool operator==(const ZipArchiveCacheKey& other) const {
+    return dev == other.dev && ino == other.ino && path == other.path;
+  }
+};
+
+struct ZipArchiveCacheKeyHash {
+  size_t operator()(const ZipArchiveCacheKey& key) const {
+    size_t h = std::hash<uint64_t>{}(static_cast<uint64_t>(key.dev));
+    h ^= std::hash<uint64_t>{}(static_cast<uint64_t>(key.ino)) + 0x9e3779b9ULL + (h << 6) + (h >> 2);
+    h ^= std::hash<std::string>{}(key.path) + 0x9e3779b9ULL + (h << 6) + (h >> 2);
+    return h;
+  }
+};
+
 class ZipArchiveCache {
  public:
   ZipArchiveCache() {}
@@ -894,26 +915,64 @@ class ZipArchiveCache {
  private:
   DISALLOW_COPY_AND_ASSIGN(ZipArchiveCache);
 
-  std::unordered_map<std::string, ZipArchiveHandle> cache_;
+  std::unordered_map<ZipArchiveCacheKey, ZipArchiveHandle, ZipArchiveCacheKeyHash> cache_;
 };
 
 bool ZipArchiveCache::get_or_open(const char* zip_path, int zip_fd, ZipArchiveHandle* handle) {
-  std::string key(zip_path);
+  *handle = nullptr;
 
+  int fd = -1;
+  struct stat sb = {};
+  if (zip_fd != -1) {
+    if (TEMP_FAILURE_RETRY(fstat(zip_fd, &sb)) != 0 || !S_ISREG(sb.st_mode) ||
+        sb.st_dev == 0 || sb.st_ino == 0) {
+      return false;
+    }
+    ZipArchiveCacheKey key{sb.st_dev, sb.st_ino, std::string(zip_path)};
+    auto it = cache_.find(key);
+    if (it != cache_.end()) {
+      *handle = it->second;
+      return true;
+    }
+    fd = fcntl(zip_fd, F_DUPFD_CLOEXEC, 0);
+    if (fd == -1) {
+      return false;
+    }
+    if (OpenArchiveFd(fd, "", handle) != 0) {
+      if (*handle != nullptr) {
+        CloseArchive(*handle);
+        *handle = nullptr;
+      }
+      return false;
+    }
+    cache_[key] = *handle;
+    return true;
+  }
+
+  fd = TEMP_FAILURE_RETRY(open(zip_path, O_RDONLY | O_CLOEXEC));
+  if (fd == -1) {
+    return false;
+  }
+  if (TEMP_FAILURE_RETRY(fstat(fd, &sb)) != 0 || !S_ISREG(sb.st_mode) ||
+      sb.st_dev == 0 || sb.st_ino == 0) {
+    close(fd);
+    return false;
+  }
+
+  ZipArchiveCacheKey key{sb.st_dev, sb.st_ino, std::string(zip_path)};
   auto it = cache_.find(key);
   if (it != cache_.end()) {
+    close(fd);
     *handle = it->second;
     return true;
   }
 
-  int fd = zip_fd != -1 ? fcntl(zip_fd, F_DUPFD_CLOEXEC, 0) : TEMP_FAILURE_RETRY(open(zip_path, O_RDONLY | O_CLOEXEC));
-  if (fd == -1) {
-    return false;
-  }
-
   if (OpenArchiveFd(fd, "", handle) != 0) {
     // invalid zip-file (?)
-    CloseArchive(*handle);
+    if (*handle != nullptr) {
+      CloseArchive(*handle);
+      *handle = nullptr;
+    }
     return false;
   }
 
@@ -927,9 +986,128 @@ ZipArchiveCache::~ZipArchiveCache() {
   }
 }
 
+static bool parse_gmscompat_fd(const char* zip_path, int* out_fd) {
+  constexpr size_t kPrefixLen = sizeof(kGmsCompatFdPrefix) - 1;
+  if (strncmp(zip_path, kGmsCompatFdPrefix, kPrefixLen) != 0) {
+    return false;
+  }
+  const char* digits = zip_path + kPrefixLen;
+  // Reject empty suffix, signs, whitespace, leading zeros, and stdin/stdout/stderr (0..2).
+  if (digits[0] < '1' || digits[0] > '9') {
+    return false;
+  }
+  for (const char* p = digits; *p != '\0'; ++p) {
+    if (*p < '0' || *p > '9') {
+      return false;
+    }
+  }
+  errno = 0;
+  char* endptr = nullptr;
+  long parsed = strtol(digits, &endptr, 10);
+  if (errno != 0 || endptr == digits || *endptr != '\0' || parsed < 3 || parsed > 0x7fffffffL) {
+    return false;
+  }
+  *out_fd = static_cast<int>(parsed);
+  return true;
+}
+
+static bool namespace_allows_gmscompat_zip(android_namespace_t* ns, const char* zip_path) {
+  const size_t zip_len = strlen(zip_path);
+  auto matches_entry = [&](const std::string& entry) {
+    if (entry.compare(0, zip_len, zip_path) != 0) {
+      return false;
+    }
+    return entry.size() == zip_len ||
+           entry.compare(zip_len, strlen(kZipFileSeparator), kZipFileSeparator) == 0;
+  };
+  for (const auto& dir : ns->get_default_library_paths()) {
+    if (matches_entry(dir)) return true;
+  }
+  for (const auto& dir : ns->get_ld_library_paths()) {
+    if (matches_entry(dir)) return true;
+  }
+  for (const auto& dir : ns->get_permitted_paths()) {
+    if (matches_entry(dir)) return true;
+  }
+  return false;
+}
+
+static bool is_gmscompat_apk_realpath(const std::string& path) {
+  if (!android::base::StartsWith(path, "/data/")) {
+    return false;
+  }
+  if (!android::base::EndsWith(path, ".apk") && !android::base::EndsWith(path, ".jar")) {
+    return false;
+  }
+  return path.find("/com.google.android.gms") != std::string::npos ||
+         path.find("/com.google.android.gsf") != std::string::npos ||
+         path.find("/com.android.vending") != std::string::npos;
+}
+
+static int open_gmscompat_zip_fd(android_namespace_t* ns, const char* zip_path,
+                                 const char* separator, bool allow_gmscompat_fd,
+                                 std::string* resolved_apk_path) {
+  if (!allow_gmscompat_fd || getauxval(AT_SECURE) != 0) {
+    return -1;
+  }
+  // Restrict strictly to unprivileged app and SDK sandbox UIDs (never root/system/HAL/isolated).
+  constexpr uid_t kAidUserOffset = 100000;
+  constexpr uid_t kAidAppStart = 10000;
+  constexpr uid_t kAidSdkSandboxEnd = 29999;
+  const uid_t appid = getuid() % kAidUserOffset;
+  if (appid < kAidAppStart || appid > kAidSdkSandboxEnd) {
+    return -1;
+  }
+  if (ns == nullptr || ns == &g_default_namespace || !ns->is_isolated()) {
+    return -1;
+  }
+
+  int raw_fd = -1;
+  if (!parse_gmscompat_fd(zip_path, &raw_fd)) {
+    return -1;
+  }
+
+  int fl = TEMP_FAILURE_RETRY(fcntl(raw_fd, F_GETFL));
+  if (fl == -1 || (fl & O_ACCMODE) != O_RDONLY) {
+    return -1;
+  }
+
+  struct stat sb = {};
+  if (TEMP_FAILURE_RETRY(fstat(raw_fd, &sb)) != 0 || !S_ISREG(sb.st_mode)) {
+    return -1;
+  }
+
+  struct statfs sfs = {};
+  if (TEMP_FAILURE_RETRY(fstatfs(raw_fd, &sfs)) != 0 || sfs.f_type == TMPFS_MAGIC) {
+    return -1;
+  }
+
+  int dup_fd = fcntl(raw_fd, F_DUPFD_CLOEXEC, 0);
+  if (dup_fd == -1) {
+    return -1;
+  }
+
+  std::string apk_realpath;
+  if (!realpath_fd(dup_fd, &apk_realpath) || !is_gmscompat_apk_realpath(apk_realpath)) {
+    close(dup_fd);
+    return -1;
+  }
+
+  const std::string full_entry_realpath = apk_realpath + separator;
+  if (!namespace_allows_gmscompat_zip(ns, zip_path) && !ns->is_accessible(full_entry_realpath)) {
+    close(dup_fd);
+    return -1;
+  }
+
+  *resolved_apk_path = std::move(apk_realpath);
+  return dup_fd;
+}
+
 static int open_library_in_zipfile(ZipArchiveCache* zip_archive_cache,
                                    const char* const input_path,
-                                   off64_t* file_offset, std::string* realpath) {
+                                   off64_t* file_offset, std::string* realpath,
+                                   android_namespace_t* ns = nullptr,
+                                   bool allow_gmscompat_fd = false) {
   std::string normalized_path;
   if (!normalize_path(input_path, &normalized_path)) {
     return -1;
@@ -957,10 +1135,13 @@ static int open_library_in_zipfile(ZipArchiveCache* zip_archive_cache,
 
   const char* zip_path = buf;
   const char* file_path = &buf[separator - path + 2];
-  int fd;
-  if (!strncmp("/gmscompat_fd_", zip_path, strlen("/gmscompat_fd_")) &&
-        sscanf(zip_path, "/gmscompat_fd_%d", &fd) == 1) {
-    fd = fcntl(fd, F_DUPFD_CLOEXEC, 0);
+  int fd = -1;
+  std::string gmscompat_apk_realpath;
+  const bool is_gmscompat_zip =
+      strncmp(zip_path, kGmsCompatFdPrefix, sizeof(kGmsCompatFdPrefix) - 1) == 0;
+  if (is_gmscompat_zip) {
+    fd = open_gmscompat_zip_fd(ns, zip_path, separator, allow_gmscompat_fd,
+                               &gmscompat_apk_realpath);
   } else {
     fd = TEMP_FAILURE_RETRY(open(zip_path, O_RDONLY | O_CLOEXEC));
   }
@@ -968,7 +1149,7 @@ static int open_library_in_zipfile(ZipArchiveCache* zip_archive_cache,
     return -1;
   }
 
-  ZipArchiveHandle handle;
+  ZipArchiveHandle handle = nullptr;
   if (!zip_archive_cache->get_or_open(zip_path, fd, &handle)) {
     // invalid zip-file (?)
     close(fd);
@@ -991,7 +1172,9 @@ static int open_library_in_zipfile(ZipArchiveCache* zip_archive_cache,
 
   *file_offset = entry.offset;
 
-  if (realpath_fd(fd, realpath)) {
+  if (is_gmscompat_zip) {
+    *realpath = gmscompat_apk_realpath + separator;
+  } else if (realpath_fd(fd, realpath)) {
     *realpath += separator;
   } else {
     if (is_proc_mounted()) {
@@ -1016,13 +1199,16 @@ static bool format_path(char* buf, size_t buf_size, const char* path, const char
 
 static int open_library_at_path(ZipArchiveCache* zip_archive_cache,
                                 const char* path, off64_t* file_offset,
-                                std::string* realpath) {
+                                std::string* realpath,
+                                android_namespace_t* ns = nullptr,
+                                bool allow_gmscompat_fd = false) {
   int fd = -1;
   if (strstr(path, kZipFileSeparator) != nullptr) {
-    fd = open_library_in_zipfile(zip_archive_cache, path, file_offset, realpath);
+    fd = open_library_in_zipfile(zip_archive_cache, path, file_offset, realpath, ns,
+                                 allow_gmscompat_fd);
   }
 
-  if (fd == -1) {
+  if (fd == -1 && strncmp(path, kGmsCompatFdPrefix, sizeof(kGmsCompatFdPrefix) - 1) != 0) {
     fd = TEMP_FAILURE_RETRY(open(path, O_RDONLY | O_CLOEXEC));
     if (fd != -1) {
       *file_offset = 0;
@@ -1041,14 +1227,17 @@ static int open_library_at_path(ZipArchiveCache* zip_archive_cache,
 static int open_library_on_paths(ZipArchiveCache* zip_archive_cache,
                                  const char* name, off64_t* file_offset,
                                  const std::vector<std::string>& paths,
-                                 std::string* realpath) {
+                                 std::string* realpath,
+                                 android_namespace_t* ns = nullptr,
+                                 bool allow_gmscompat_fd = false) {
   for (const auto& path : paths) {
     char buf[512];
     if (!format_path(buf, sizeof(buf), path.c_str(), name)) {
       continue;
     }
 
-    int fd = open_library_at_path(zip_archive_cache, buf, file_offset, realpath);
+    int fd = open_library_at_path(zip_archive_cache, buf, file_offset, realpath, ns,
+                                  allow_gmscompat_fd);
     if (fd != -1) {
       return fd;
     }
@@ -1064,18 +1253,23 @@ static int open_library(android_namespace_t* ns,
   LD_DEBUG(any, "[ opening %s from namespace %s ]", name, ns->get_name());
 
   // If the name contains a slash, we should attempt to open it directly and not search the paths.
+  // Never allow DT_NEEDED entries with embedded slashes to resolve /gmscompat_fd_ descriptors.
   if (strchr(name, '/') != nullptr) {
-    return open_library_at_path(zip_archive_cache, name, file_offset, realpath);
+    return open_library_at_path(zip_archive_cache, name, file_offset, realpath, ns,
+                                needed_by == nullptr);
   }
 
   // LD_LIBRARY_PATH has the highest priority. We don't have to check accessibility when searching
   // the namespace's path lists, because anything found on a namespace path list should always be
   // accessible.
-  int fd = open_library_on_paths(zip_archive_cache, name, file_offset, ns->get_ld_library_paths(), realpath);
+  int fd = open_library_on_paths(zip_archive_cache, name, file_offset, ns->get_ld_library_paths(),
+                                 realpath, ns, true);
 
   // Try the DT_RUNPATH, and verify that the library is accessible.
+  // Never allow untrusted ELF DT_RUNPATH to resolve /gmscompat_fd_ descriptors.
   if (fd == -1 && needed_by != nullptr) {
-    fd = open_library_on_paths(zip_archive_cache, name, file_offset, needed_by->get_dt_runpath(), realpath);
+    fd = open_library_on_paths(zip_archive_cache, name, file_offset, needed_by->get_dt_runpath(),
+                               realpath, ns, false);
     if (fd != -1 && !ns->is_accessible(*realpath)) {
       close(fd);
       fd = -1;
@@ -1084,7 +1278,8 @@ static int open_library(android_namespace_t* ns,
 
   // Finally search the namespace's main search path list.
   if (fd == -1) {
-    fd = open_library_on_paths(zip_archive_cache, name, file_offset, ns->get_default_library_paths(), realpath);
+    fd = open_library_on_paths(zip_archive_cache, name, file_offset,
+                               ns->get_default_library_paths(), realpath, ns, true);
   }
 
   return fd;
@@ -1226,8 +1421,17 @@ static bool load_library(android_namespace_t* ns,
   }
 
   // do not check accessibility using realpath if fd is located on tmpfs
-  // this enables use of memfd_create() for apps
-  if ((fs_stat.f_type != TMPFS_MAGIC) && (!ns->is_accessible(realpath))) {
+  // this enables use of memfd_create() for apps, except for /gmscompat_fd_ paths
+  // which must always enforce namespace isolation.
+  const bool is_gmscompat_path =
+      strncmp(name, kGmsCompatFdPrefix, sizeof(kGmsCompatFdPrefix) - 1) == 0;
+  if ((is_gmscompat_path || fs_stat.f_type != TMPFS_MAGIC) && (!ns->is_accessible(realpath))) {
+    if (is_gmscompat_path && !namespace_allows_gmscompat_zip(ns, std::string(name, strstr(name, kZipFileSeparator) ? static_cast<size_t>(strstr(name, kZipFileSeparator) - name) : strlen(name)).c_str())) {
+      DL_OPEN_ERR("gmscompat library \"%s\" (\"%s\") is not accessible for the namespace \"%s\"",
+                  name, realpath.c_str(), ns->get_name());
+      return false;
+    }
+    if (!is_gmscompat_path) {
     // TODO(dimitry): workaround for http://b/26394120 - the exempt-list
 
     const soinfo* needed_by = task->is_dt_needed() ? task->get_needed_by() : nullptr;
@@ -1267,6 +1471,7 @@ static bool load_library(android_namespace_t* ns,
                 android::base::Join(ns->get_permitted_paths(), ':').c_str());
       }
       return false;
+    }
     }
   }
 

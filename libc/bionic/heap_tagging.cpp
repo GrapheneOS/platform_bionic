@@ -31,10 +31,18 @@
 #include "malloc_tagged_pointers.h"
 
 #include <bionic/pthread_internal.h>
+#include <linux/audit.h>
+#include <linux/filter.h>
+#include <linux/seccomp.h>
 #include <platform/bionic/malloc.h>
+#include <platform/bionic/mte.h>
 #include <sanitizer/hwasan_interface.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <sys/auxv.h>
 #include <sys/prctl.h>
+#include <sys/syscall.h>
+#include <unistd.h>
 
 extern "C" void h_malloc_disable_memory_tagging();
 
@@ -117,12 +125,111 @@ pthread_mutex_t g_heap_tagging_lock = PTHREAD_MUTEX_INITIALIZER;
 
 static bool block_heap_tagging_level_downgrade;
 
+#if defined(__aarch64__) && !__has_feature(hwaddress_sanitizer)
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+#define SECCOMP_ARG_LOW32(n) (offsetof(struct seccomp_data, args[n]) + sizeof(__u32))
+#define SECCOMP_ARG_HIGH32(n) (offsetof(struct seccomp_data, args[n]))
+#else
+#define SECCOMP_ARG_LOW32(n) (offsetof(struct seccomp_data, args[n]))
+#define SECCOMP_ARG_HIGH32(n) (offsetof(struct seccomp_data, args[n]) + sizeof(__u32))
+#endif
+
+// Installs a thread-group-synchronized (TSYNC) seccomp-BPF filter that enforces
+// the heap tagging downgrade lock in the kernel against raw prctl() syscalls.
+// Uses SECCOMP_RET_KILL_PROCESS so SIGSYS handlers (including profiling SIGSYS
+// overrides) cannot catch or suppress MTE downgrade attempts.
+static bool InstallMteDowngradeLockSeccompFilter(HeapTaggingLevel current_level) {
+  if (current_level == M_HEAP_TAGGING_LEVEL_NONE) {
+    return true;
+  }
+
+  const bool require_mte = (current_level == M_HEAP_TAGGING_LEVEL_ASYNC ||
+                            current_level == M_HEAP_TAGGING_LEVEL_SYNC);
+  int cur_ctrl = prctl(PR_GET_TAGGED_ADDR_CTRL, 0, 0, 0, 0);
+
+  uint32_t required_bits = PR_TAGGED_ADDR_ENABLE;
+  uint32_t forbidden_bits = 0;
+  uint32_t tcf_any_mask = PR_TAGGED_ADDR_ENABLE;
+
+  if (require_mte) {
+    uint32_t active_tag_mask =
+        (cur_ctrl >= 0) ? (static_cast<uint32_t>(cur_ctrl) & PR_MTE_TAG_MASK) : 0;
+    required_bits |= (active_tag_mask != 0) ? active_tag_mask
+                                            : static_cast<uint32_t>(PR_MTE_TAG_SET_NONZERO);
+    forbidden_bits |= PR_MTE_STORE_ONLY;
+    tcf_any_mask = PR_MTE_TCF_MASK;
+  }
+
+  // Exact 18-instruction cBPF filter:
+  //   - Non-prctl syscalls take 5 instructions -> ALLOW.
+  //   - Unrelated prctl() options take 7 instructions -> ALLOW.
+  //   - Matches low 32-bit `int option` == PR_SET_TAGGED_ADDR_CTRL (matching
+  //     SYSCALL_DEFINE5(prctl, int, option, ...) 32-bit cast semantics) and
+  //     kills on non-zero upper 32 bits of args[0] or args[1], PR_MTE_STORE_ONLY,
+  //     clearing PR_MTE_TCF_SYNC|PR_MTE_TCF_ASYNC (PR_MTE_TCF_NONE), clearing
+  //     PR_TAGGED_ADDR_ENABLE, or weakening the active PR_MTE_TAG_MASK.
+  struct sock_filter filter[] = {
+      // [0] Load seccomp_data.arch
+      BPF_STMT(BPF_LD | BPF_W | BPF_ABS, offsetof(struct seccomp_data, arch)),
+      // [1] If arch == AUDIT_ARCH_AARCH64 goto [3]
+      BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, AUDIT_ARCH_AARCH64, 1, 0),
+      // [2] Allow compat AUDIT_ARCH_ARM to pass to base filter; kill unknown arch
+      BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, AUDIT_ARCH_ARM, 13, 14),
+      // [3] Load seccomp_data.nr
+      BPF_STMT(BPF_LD | BPF_W | BPF_ABS, offsetof(struct seccomp_data, nr)),
+      // [4] If nr != __NR_prctl goto [16] ALLOW
+      BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_prctl, 0, 11),
+      // [5] Load low 32-bit word of args[0] (`int option`)
+      BPF_STMT(BPF_LD | BPF_W | BPF_ABS, SECCOMP_ARG_LOW32(0)),
+      // [6] If option != PR_SET_TAGGED_ADDR_CTRL goto [16] ALLOW
+      BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, PR_SET_TAGGED_ADDR_CTRL, 0, 9),
+      // [7] Reject non-zero high 32-bit word in args[0] (upper-bit smuggling)
+      BPF_STMT(BPF_LD | BPF_W | BPF_ABS, SECCOMP_ARG_HIGH32(0)),
+      // [8] If high32(args[0]) != 0 goto [17] KILL_PROCESS
+      BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 0, 0, 8),
+      // [9] Reject non-zero high 32-bit word in args[1] (`unsigned long arg2`)
+      BPF_STMT(BPF_LD | BPF_W | BPF_ABS, SECCOMP_ARG_HIGH32(1)),
+      // [10] If high32(args[1]) != 0 goto [17] KILL_PROCESS
+      BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 0, 0, 6),
+      // [11] Load low 32-bit word of args[1] (`arg2`)
+      BPF_STMT(BPF_LD | BPF_W | BPF_ABS, SECCOMP_ARG_LOW32(1)),
+      // [12] Reject forbidden flags (e.g. PR_MTE_STORE_ONLY) -> [17] KILL_PROCESS
+      BPF_JUMP(BPF_JMP | BPF_JSET | BPF_K, forbidden_bits, 4, 0),
+      // [13] Require PR_MTE_TCF_SYNC or PR_MTE_TCF_ASYNC (reject PR_MTE_TCF_NONE) -> [17]
+      BPF_JUMP(BPF_JMP | BPF_JSET | BPF_K, tcf_any_mask, 0, 3),
+      // [14] Verify PR_TAGGED_ADDR_ENABLE and active PR_MTE_TAG_MASK bits remain set
+      BPF_STMT(BPF_ALU | BPF_AND | BPF_K, required_bits),
+      // [15] If (arg2 & required_bits) == required_bits goto [16] ALLOW else [17] KILL
+      BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, required_bits, 0, 1),
+      // [16] ALLOW
+      BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW),
+      // [17] Uncatchable process-wide termination
+      BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_KILL_PROCESS),
+  };
+
+  struct sock_fprog prog = {
+      .len = static_cast<unsigned short>( sizeof(filter) / sizeof(filter[0]) ),
+      .filter = filter,
+  };
+
+  if (syscall(__NR_seccomp, SECCOMP_SET_MODE_FILTER, SECCOMP_FILTER_FLAG_TSYNC, &prog) == 0) {
+    return true;
+  }
+
+  warning_log("BlockHeapTaggingLevelDowngrade: seccomp TSYNC filter install failed: %m");
+  return false;
+}
+#endif  // defined(__aarch64__) && !__has_feature(hwaddress_sanitizer)
+
 // Requires `g_heap_tagging_lock` to be held.
 bool BlockHeapTaggingLevelDowngrade() {
   if (block_heap_tagging_level_downgrade) {
     return false;
   }
   block_heap_tagging_level_downgrade = true;
+#if defined(__aarch64__) && !__has_feature(hwaddress_sanitizer)
+  InstallMteDowngradeLockSeccompFilter(heap_tagging_level);
+#endif
   return true;
 }
 

@@ -27,3 +27,9 @@ bool set_system_seccomp_filter();
 // Installs a filter that limits setresuid/setresgid to a range of
 // [uid_gid_min..uid_gid_max] (for the real-, effective- and super-ids).
 bool install_setuidgid_seccomp_filter(uint32_t uid_gid_min, uint32_t uid_gid_max);
+
+// Installs a thread-group-synchronized (TSYNC) BPF filter that prevents
+// disabling MTE tag checks via raw prctl(PR_SET_TAGGED_ADDR_CTRL, ...).
+// When lock_sync_only is true, downgrading PR_MTE_TCF_SYNC to PR_MTE_TCF_ASYNC
+// is also rejected. Uses SECCOMP_RET_KILL_PROCESS when kill_process is true.
+bool install_mte_tcf_lock_seccomp_filter(bool lock_sync_only = false, bool kill_process = true);

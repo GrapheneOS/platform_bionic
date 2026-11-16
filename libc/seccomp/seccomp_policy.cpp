@@ -26,6 +26,7 @@
 
 #include <android-base/logging.h>
 #include <android-base/macros.h>
+#include <android-base/properties.h>
 
 #include "func_to_syscall_nrs.h"
 #include "seccomp_bpfs.h"
@@ -104,8 +105,19 @@ inline void Allow(filter& f) {
     f.push_back(BPF_STMT(BPF_RET|BPF_K, SECCOMP_RET_ALLOW));
 }
 
-inline void Disallow(filter& f) {
-    f.push_back(BPF_STMT(BPF_RET|BPF_K, SECCOMP_RET_TRAP));
+static bool ShouldKillProcessOnDisallow() {
+#if defined(SECCOMP_DISALLOW_KILL_PROCESS)
+    return true;
+#else
+    static const bool kKillProcess =
+        android::base::GetBoolProperty("ro.security.seccomp.kill_process", false);
+    return kKillProcess;
+#endif
+}
+
+inline void Disallow(filter& f, bool kill_process = ShouldKillProcessOnDisallow()) {
+    f.push_back(BPF_STMT(BPF_RET|BPF_K,
+                         kill_process ? SECCOMP_RET_KILL_PROCESS : SECCOMP_RET_TRAP));
 }
 
 static void ExamineSyscall(filter& f) {
@@ -316,4 +328,60 @@ bool set_system_seccomp_filter() {
 
 bool install_setuidgid_seccomp_filter(uint32_t uid_gid_min, uint32_t uid_gid_max) {
     return _install_setuidgid_filter(uid_gid_min, uid_gid_max);
+}
+
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+#define SECCOMP_DATA_ARG_LOW32(n) (offsetof(struct seccomp_data, args[n]) + sizeof(__u32))
+#define SECCOMP_DATA_ARG_HIGH32(n) (offsetof(struct seccomp_data, args[n]))
+#else
+#define SECCOMP_DATA_ARG_LOW32(n) (offsetof(struct seccomp_data, args[n]))
+#define SECCOMP_DATA_ARG_HIGH32(n) (offsetof(struct seccomp_data, args[n]) + sizeof(__u32))
+#endif
+
+bool install_mte_tcf_lock_seccomp_filter(bool lock_sync_only, bool kill_process) {
+#if defined(__aarch64__) || defined(__arm__)
+    constexpr uint32_t kMteNonZeroTagMask = 0xfffeU << PR_MTE_TAG_SHIFT;
+    uint32_t required_bits = PR_TAGGED_ADDR_ENABLE | kMteNonZeroTagMask;
+    uint32_t forbidden_bits = PR_MTE_STORE_ONLY;
+    if (lock_sync_only) {
+        required_bits |= PR_MTE_TCF_SYNC;
+        forbidden_bits |= PR_MTE_TCF_ASYNC;
+    }
+    const uint32_t deny_ret = kill_process ? SECCOMP_RET_KILL_PROCESS : SECCOMP_RET_TRAP;
+
+    filter f = {
+        BPF_STMT(BPF_LD | BPF_W | BPF_ABS, arch_nr),
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, AUDIT_ARCH_AARCH64, 1, 0),
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, AUDIT_ARCH_ARM, 13, 14),
+        BPF_STMT(BPF_LD | BPF_W | BPF_ABS, syscall_nr),
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, static_cast<__u32>(__arm64_prctl), 0, 11),
+        BPF_STMT(BPF_LD | BPF_W | BPF_ABS, SECCOMP_DATA_ARG_LOW32(0)),
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, PR_SET_TAGGED_ADDR_CTRL, 0, 9),
+        BPF_STMT(BPF_LD | BPF_W | BPF_ABS, SECCOMP_DATA_ARG_HIGH32(0)),
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 0, 0, 8),
+        BPF_STMT(BPF_LD | BPF_W | BPF_ABS, SECCOMP_DATA_ARG_HIGH32(1)),
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 0, 0, 6),
+        BPF_STMT(BPF_LD | BPF_W | BPF_ABS, SECCOMP_DATA_ARG_LOW32(1)),
+        BPF_JUMP(BPF_JMP | BPF_JSET | BPF_K, forbidden_bits, 4, 0),
+        BPF_JUMP(BPF_JMP | BPF_JSET | BPF_K, PR_MTE_TCF_MASK, 0, 3),
+        BPF_STMT(BPF_ALU | BPF_AND | BPF_K, required_bits),
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, required_bits, 0, 1),
+        BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW),
+        BPF_STMT(BPF_RET | BPF_K, deny_ret),
+    };
+
+    struct sock_fprog prog = {
+        static_cast<unsigned short>(f.size()),
+        const_cast<struct sock_filter*>(&f[0]),
+    };
+    if (syscall(__NR_seccomp, SECCOMP_SET_MODE_FILTER, SECCOMP_FILTER_FLAG_TSYNC, &prog) < 0) {
+        PLOG(FATAL) << "Could not set MTE TCF lock seccomp filter of size " << f.size();
+        return false;
+    }
+    return true;
+#else
+    UNUSED(lock_sync_only);
+    UNUSED(kill_process);
+    return true;
+#endif
 }

@@ -64,24 +64,37 @@ const ElfW(NhdrGNUProperty)* GnuPropertySection::FindSegment(const ElfW(Phdr)* p
 
       LD_DEBUG(props, "\"%s\" PT_GNU_PROPERTY: found at segment index %zu", name, i);
 
+      if (phdr[i].p_filesz > phdr[i].p_memsz) {
+        DL_ERR_AND_LOG("\"%s\" PT_GNU_PROPERTY segment has p_filesz (%zu) > p_memsz (%zu).",
+                       name, static_cast<size_t>(phdr[i].p_filesz),
+                       static_cast<size_t>(phdr[i].p_memsz));
+        return nullptr;
+      }
+
       // Check segment size.
-      if (phdr[i].p_memsz < sizeof(ElfW(NhdrGNUProperty))) {
+      if (phdr[i].p_filesz < sizeof(ElfW(NhdrGNUProperty))) {
         DL_ERR_AND_LOG(
             "\"%s\" PT_GNU_PROPERTY segment is too small. Segment "
             "size is %zu, minimum is %zu.",
-            name, static_cast<size_t>(phdr[i].p_memsz), sizeof(ElfW(NhdrGNUProperty)));
+            name, static_cast<size_t>(phdr[i].p_filesz), sizeof(ElfW(NhdrGNUProperty)));
+        return nullptr;
+      }
+
+      ElfW(Addr) note_vaddr;
+      if (__builtin_add_overflow(load_bias, phdr[i].p_vaddr, &note_vaddr)) {
+        DL_ERR_AND_LOG("\"%s\" PT_GNU_PROPERTY segment address overflow.", name);
         return nullptr;
       }
 
       // PT_GNU_PROPERTY contains .note.gnu.property which has SHF_ALLOC
       // attribute, therefore it is loaded.
-      auto note_nhdr = reinterpret_cast<ElfW(NhdrGNUProperty)*>(load_bias + phdr[i].p_vaddr);
+      auto note_nhdr = reinterpret_cast<ElfW(NhdrGNUProperty)*>(note_vaddr);
 
-      // Check that the n_descsz <= p_memsz
-      if ((phdr[i].p_memsz - sizeof(ElfW(NhdrGNUProperty))) < note_nhdr->nhdr.n_descsz) {
+      // Check that the n_descsz <= p_filesz
+      if ((phdr[i].p_filesz - sizeof(ElfW(NhdrGNUProperty))) < note_nhdr->nhdr.n_descsz) {
         DL_ERR_AND_LOG(
-            "\"%s\" PT_GNU_PROPERTY segment p_memsz (%zu) is too small for note n_descsz (%zu).",
-            name, static_cast<size_t>(phdr[i].p_memsz),
+            "\"%s\" PT_GNU_PROPERTY segment p_filesz (%zu) is too small for note n_descsz (%zu).",
+            name, static_cast<size_t>(phdr[i].p_filesz),
             static_cast<size_t>(note_nhdr->nhdr.n_descsz));
         return nullptr;
       }
@@ -110,7 +123,7 @@ bool GnuPropertySection::SanityCheck(const ElfW(NhdrGNUProperty)* note_nhdr,
   }
 
   if (strncmp(note_nhdr->n_name, "GNU", 4) != 0) {
-    DL_ERR_AND_LOG("\"%s\" .note.gnu.property: unexpected name. Expected 'GNU', got '%s'.", name,
+    DL_ERR_AND_LOG("\"%s\" .note.gnu.property: unexpected name. Expected 'GNU', got '%.4s'.", name,
                    note_nhdr->n_name);
     return false;
   }
@@ -120,13 +133,14 @@ bool GnuPropertySection::SanityCheck(const ElfW(NhdrGNUProperty)* note_nhdr,
 
 bool GnuPropertySection::Parse(const ElfW(NhdrGNUProperty)* note_nhdr, const char* name) {
   // The total length of the program property array is in _bytes_.
-  ElfW(Word) offset = 0;
-  while (offset < note_nhdr->nhdr.n_descsz) {
-    LD_DEBUG(props, "\"%s\" .note.gnu.property: processing at offset 0x%x", name, offset);
+  const size_t total_descsz = note_nhdr->nhdr.n_descsz;
+  size_t offset = 0;
+  while (offset < total_descsz) {
+    LD_DEBUG(props, "\"%s\" .note.gnu.property: processing at offset 0x%zx", name, offset);
 
     // At least the "header" part must fit.
     // The ABI doesn't say that pr_datasz can't be 0.
-    if ((note_nhdr->nhdr.n_descsz - offset) < sizeof(ElfW(Prop))) {
+    if ((total_descsz - offset) < sizeof(ElfW(Prop))) {
       DL_ERR_AND_LOG(
           "\"%s\" .note.gnu.property: no more space left for a "
           "Program Property Note header.",
@@ -136,13 +150,20 @@ bool GnuPropertySection::Parse(const ElfW(NhdrGNUProperty)* note_nhdr, const cha
 
     // Loop on program property array.
     const ElfW(Prop)* property = reinterpret_cast<const ElfW(Prop)*>(&note_nhdr->n_desc[offset]);
-    const ElfW(Word) property_size =
-        __builtin_align_up(sizeof(ElfW(Prop)) + property->pr_datasz, sizeof(ElfW(Addr)));
-    if ((note_nhdr->nhdr.n_descsz - offset) < property_size) {
+    size_t raw_size = 0;
+    size_t aligned_tmp = 0;
+    if (__builtin_add_overflow(sizeof(ElfW(Prop)), static_cast<size_t>(property->pr_datasz),
+                               &raw_size) ||
+        __builtin_add_overflow(raw_size, sizeof(ElfW(Addr)) - 1, &aligned_tmp)) {
+      DL_ERR_AND_LOG("\"%s\" .note.gnu.property: property descriptor size overflow.", name);
+      return false;
+    }
+    const size_t property_size = aligned_tmp & ~(sizeof(ElfW(Addr)) - 1);
+    if ((total_descsz - offset) < property_size) {
       DL_ERR_AND_LOG(
           "\"%s\" .note.gnu.property: property descriptor size is "
-          "invalid. Expected at least %u bytes, got %u.",
-          name, property_size, note_nhdr->nhdr.n_descsz - offset);
+          "invalid. Expected at least %zu bytes, got %zu.",
+          name, property_size, total_descsz - offset);
       return false;
     }
 

@@ -60,6 +60,13 @@ bool __bionic_get_tls_segment(const ElfW(Phdr)* phdr_table, size_t phdr_count,
   for (size_t i = 0; i < phdr_count; ++i) {
     const ElfW(Phdr)& phdr = phdr_table[i];
     if (phdr.p_type == PT_TLS) {
+      if (phdr.p_filesz > phdr.p_memsz) {
+        return false;
+      }
+      ElfW(Addr) init_addr = 0;
+      if (__builtin_add_overflow(load_bias, phdr.p_vaddr, &init_addr)) {
+        return false;
+      }
       *out = TlsSegment{
           .aligned_size =
               TlsAlignedSize{
@@ -70,7 +77,7 @@ bool __bionic_get_tls_segment(const ElfW(Phdr)* phdr_table, size_t phdr_count,
                           .skew = phdr.p_vaddr % MAX(1, phdr.p_align),
                       },
               },
-          .init_ptr = reinterpret_cast<void*>(load_bias + phdr.p_vaddr),
+          .init_ptr = reinterpret_cast<void*>(init_addr),
           .init_size = phdr.p_filesz,
       };
       return true;

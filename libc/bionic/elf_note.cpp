@@ -34,31 +34,47 @@
 bool __get_elf_note(unsigned note_type, const char* note_name, const ElfW(Addr) note_addr,
                     const ElfW(Phdr)* phdr_note, const ElfW(Nhdr)** note_hdr,
                     const char** note_desc) {
-  if (phdr_note->p_type != PT_NOTE || !note_name || !note_addr) {
+  if (phdr_note->p_type != PT_NOTE || !note_name || !note_addr ||
+      phdr_note->p_filesz > phdr_note->p_memsz) {
     return false;
   }
 
   size_t note_name_len = strlen(note_name) + 1;
 
   ElfW(Addr) p = note_addr;
-  ElfW(Addr) note_end = p + phdr_note->p_memsz;
+  ElfW(Addr) note_end;
+  if (__builtin_add_overflow(p, phdr_note->p_filesz, &note_end)) {
+    return false;
+  }
   while (p < note_end) {
     // Parse the note and check it's structurally valid.
+    if (note_end - p < sizeof(ElfW(Nhdr))) {
+      return false;
+    }
     const ElfW(Nhdr)* note = reinterpret_cast<const ElfW(Nhdr)*>(p);
-    if (__builtin_add_overflow(p, sizeof(ElfW(Nhdr)), &p) || p >= note_end) {
+    p += sizeof(ElfW(Nhdr));
+
+    size_t aligned_namesz = 0;
+    if (__builtin_add_overflow(static_cast<size_t>(note->n_namesz), size_t{3}, &aligned_namesz)) {
+      return false;
+    }
+    aligned_namesz &= ~size_t{3};
+    if (note_end - p < aligned_namesz) {
       return false;
     }
     const char* name = reinterpret_cast<const char*>(p);
-    if (__builtin_add_overflow(p, __builtin_align_up(note->n_namesz, 4), &p)) {
+    p += aligned_namesz;
+
+    size_t aligned_descsz = 0;
+    if (__builtin_add_overflow(static_cast<size_t>(note->n_descsz), size_t{3}, &aligned_descsz)) {
+      return false;
+    }
+    aligned_descsz &= ~size_t{3};
+    if (note_end - p < aligned_descsz) {
       return false;
     }
     const char* desc = reinterpret_cast<const char*>(p);
-    if (__builtin_add_overflow(p, __builtin_align_up(note->n_descsz, 4), &p)) {
-      return false;
-    }
-    if (p > note_end) {
-      return false;
-    }
+    p += aligned_descsz;
 
     // Is this the note we're looking for?
     if (note->n_type == note_type &&
@@ -77,8 +93,14 @@ bool __find_elf_note(unsigned int note_type, const char* note_name, const ElfW(P
                      const ElfW(Addr) load_bias) {
   for (size_t i = 0; i < phdr_ct; ++i) {
     const ElfW(Phdr)* phdr = &phdr_start[i];
+    if (phdr->p_type != PT_NOTE) {
+      continue;
+    }
 
-    ElfW(Addr) note_addr = load_bias + phdr->p_vaddr;
+    ElfW(Addr) note_addr;
+    if (__builtin_add_overflow(load_bias, phdr->p_vaddr, &note_addr)) {
+      continue;
+    }
     if (__get_elf_note(note_type, note_name, note_addr, phdr, note_hdr, note_desc)) {
       return true;
     }

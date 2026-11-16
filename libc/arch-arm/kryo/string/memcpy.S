@@ -45,18 +45,18 @@ ENTRY(__memcpy_kryo)
         .cfi_def_cfa_offset 4
         .cfi_rel_offset r0, 0
         cmp             r2, #4
-        blt             .Lneon_lt4
+        blo             .Lneon_lt4
         cmp             r2, #16
-        blt             .Lneon_lt16
+        blo             .Lneon_lt16
         cmp             r2, #32
-        blt             .Lneon_16
+        blo             .Lneon_16
         cmp              r2, #128
-        blt              .Lneon_copy_32_a
+        blo              .Lneon_copy_32_a
         /* Copy blocks of 128-bytes (word-aligned) at a time*/
         /* Code below is optimized for PLDSIZE=128 only */
         mov             r12, r2, lsr #7
         cmp             r12, #PLDOFFS
-        ble             .Lneon_copy_128_loop_nopld
+        bls             .Lneon_copy_128_loop_nopld
         sub             r12, #PLDOFFS
         pld             [r1, #(PLDOFFS-1)*PLDSIZE]
 .Lneon_copy_128_loop_outer:
@@ -87,7 +87,7 @@ ENTRY(__memcpy_kryo)
         ands            r2, r2, #0x7f
         beq             .Lneon_exit
         cmp             r2, #32
-        blt             .Lneon_16
+        blo             .Lneon_16
         nop
         /* Copy blocks of 32-bytes (word aligned) at a time*/
 .Lneon_copy_32_a:
@@ -101,7 +101,7 @@ ENTRY(__memcpy_kryo)
         beq             .Lneon_exit
 .Lneon_16:
         subs            r2, r2, #16
-        blt             .Lneon_lt16
+        blo             .Lneon_lt16
         vld1.32         {q8}, [r1]!
         vst1.32         {q8}, [r0]!
         beq             .Lneon_exit

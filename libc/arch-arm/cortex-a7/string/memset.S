@@ -79,7 +79,7 @@ ENTRY(memset_a7)
 1:      // Main loop stores 64 bytes at a time.
         subs        r2, #64
         vstmia      r3!, {d0 - d7}
-        bge         1b
+        bhs         1b
 
 .L_set_less_than_64:
         // Restore r2 to the count of bytes left to set.
@@ -151,7 +151,7 @@ ENTRY(memset_a7)
         movs        ip, r2, lsl #29
         bcc         1f
         vst1.8      {d0}, [r3]!
-1:      bge         2f
+1:      bpl         2f
         vst1.32     {d0[0]}, [r3]!
 2:      movs        ip, r2, lsl #31
         it          mi

@@ -57,7 +57,7 @@ ENTRY(memcmp)
          * and avoid some overhead for small blocks
          */
         cmp        r2, #(8+4)
-        bmi        10f
+        blo        10f
 /*
  * Neon optimization
  * Comparing 32 bytes at a time
@@ -105,7 +105,7 @@ ENTRY(memcmp)
         add         r2, r2, #32
 
         cmp        r2, #(8+4)
-        bmi        10f
+        blo        10f
 #endif
 
         /* save registers */
@@ -153,7 +153,7 @@ ENTRY(memcmp)
 
         ldr         ip, [r1]
         subs        r2, r2, #(32 + 4)
-        bmi         1f
+        blo         1f
 
 0:      pld         [r4, #(CACHE_LINE_SIZE * 2)]
         pld         [r1, #(CACHE_LINE_SIZE * 2)]
@@ -187,7 +187,7 @@ ENTRY(memcmp)
 
         /* do we have at least 4 bytes left? */
 1:      adds        r2, r2, #(32 - 4 + 4)
-        bmi         4f
+        bcc         4f
 
         /* finish off 4 bytes at a time */
 3:      ldr         r0, [r4], #4
@@ -245,8 +245,8 @@ ENTRY(memcmp)
 
         /* make sure we have at least 16 bytes to process */
         subs        r2, r2, #16
-        addmi       r2, r2, #16
-        bmi         8b
+        addlo       r2, r2, #16
+        blo         8b
 
         /* align the unaligned pointer */
         bic         r1, r1, #3

@@ -92,7 +92,7 @@
         strbcs      lr, [r0], #1
 
         movs        ip, r3, lsl #29
-        bge         1f
+        bpl         1f
         // Copies 4 bytes, dst 32 bits aligned before, at least 64 bits after.
         vld4.8      {d0[0], d1[0], d2[0], d3[0]}, [r1]!
         vst4.8      {d0[0], d1[0], d2[0], d3[0]}, [r0, :32]!
@@ -102,7 +102,7 @@
         vst1.8      {d0}, [r0, :64]!
 
 2:      cmp         r2, #256
-        ble         .L_copy_loop
+        bls         .L_copy_loop
 
         // Make sure DST is 64 BYTE aligned.
         rsb         r3, r0, #0
@@ -158,7 +158,7 @@
         bcc         1f
         vld1.8      {d0}, [r1]!
         vst1.8      {d0}, [r0]!
-1:      bge         2f
+1:      bpl         2f
         vld4.8      {d0[0], d1[0], d2[0], d3[0]}, [r1]!
         vst4.8      {d0[0], d1[0], d2[0], d3[0]}, [r0]!
 

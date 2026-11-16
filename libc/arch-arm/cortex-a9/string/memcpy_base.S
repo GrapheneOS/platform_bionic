@@ -73,7 +73,7 @@ ENTRY_PRIVATE(MEMCPY_BASE)
         strbcs      ip, [r0], #1
         strbcs      lr, [r0], #1
         movs        ip, r3, lsl #29
-        bge         1f
+        bpl         1f
         // copies 4 bytes, destination 32-bits aligned
         vld1.32     {d0[0]}, [r1]!
         vst1.32     {d0[0]}, [r0, :32]!
@@ -126,7 +126,7 @@ ENTRY_PRIVATE(MEMCPY_BASE)
         bcc         1f
         vld1.8      {d0}, [r1]!
         vst1.8      {d0}, [r0]!
-1:      bge         2f
+1:      bpl         2f
         vld1.32     {d0[0]}, [r1]!
         vst1.32     {d0[0]}, [r0]!
 2:      movs        ip, r2, lsl #31
@@ -179,7 +179,7 @@ ENTRY_PRIVATE(MEMCPY_BASE_ALIGNED)
 
 2:
         subs        r2, r2, #64
-        blt         4f
+        blo         4f
 
 3:      /* Main copy loop, copying 64 bytes at a time */
         pld         [r1, #(32 * 8)]
@@ -188,12 +188,12 @@ ENTRY_PRIVATE(MEMCPY_BASE_ALIGNED)
         ldmia       r1!, {r3, r4, r5, r6, r7, r8, r12, lr}
         stmia       r0!, {r3, r4, r5, r6, r7, r8, r12, lr}
         subs        r2, r2, #64
-        bge         3b
+        bhs         3b
 
 4:      /* Check if there are > 32 bytes left */
         adds        r2, r2, #64
         subs        r2, r2, #32
-        blt         5f
+        blo         5f
 
         /* Copy 32 bytes */
         ldmia       r1!, {r3, r4, r5, r6, r7, r8, r12, lr}

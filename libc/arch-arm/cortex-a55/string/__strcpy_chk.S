@@ -153,11 +153,14 @@ ENTRY(__strcpy_chk_a55)
     ldr     r0, [sp]
 
     // Add 1 for copy length to get the string terminator.
-    add     r2, r3, #1
+    adds    r2, r3, #1
+    itt     cs
+    movcs   r0, lr
+    bcs     __strcpy_chk_fail
 
     cmp     r2, lr
     itt     hi
-    movhi   r0, r2
+    movhi   r0, lr
     bhi     __strcpy_chk_fail
 
     // Fall through into the memcpy_base function.

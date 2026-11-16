@@ -174,14 +174,20 @@ ENTRY(__strcat_chk_a9)
     mov     r5, r0
 
     // Save the current length (adding 1 for the terminator).
-    add     r4, r3, #1
+    adds    r4, r3, #1
+    itt     cs
+    movcs   r0, lr
+    bcs     __strcat_chk_fail
     b       .L_strlen_start
 
     // r0 holds the pointer to the dst string.
     // r3 holds the dst string length.
     // r4 holds the src string length + 1.
 .L_strlen_done:
-    add     r2, r3, r4
+    adds    r2, r3, r4
+    itt     cs
+    movcs   r0, lr
+    bcs     __strcat_chk_fail
     cmp     r2, lr
     itt     hi
     movhi   r0, lr

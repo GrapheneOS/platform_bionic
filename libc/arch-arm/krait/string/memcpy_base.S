@@ -50,17 +50,17 @@
 
 .L_memcpy_base:
 	cmp	r2, #4
-	blt	.L_neon_lt4
+	blo	.L_neon_lt4
 	cmp	r2, #16
-	blt	.L_neon_lt16
+	blo	.L_neon_lt16
 	cmp	r2, #32
-	blt	.L_neon_16
+	blo	.L_neon_16
 	cmp	r2, #64
-	blt	.L_neon_copy_32_a
+	blo	.L_neon_copy_32_a
 
 	mov	r12, r2, lsr #6
 	cmp	r12, #PLDTHRESH
-	ble	.L_neon_copy_64_loop_nopld
+	bls	.L_neon_copy_64_loop_nopld
 
 	push	{r9, r10}
 	.cfi_adjust_cfa_offset 8
@@ -68,7 +68,7 @@
 	.cfi_rel_offset r10, 4
 
 	cmp	r12, #BBTHRESH
-	ble	.L_neon_prime_pump
+	bls	.L_neon_prime_pump
 
 	add	lr, r0, #0x400
 	add	r9, r1, #(PLDOFFS*PLDSIZE)
@@ -77,12 +77,12 @@
 	lsr	lr, lr, #21
 	add	lr, lr, #(PLDOFFS*PLDSIZE)
 	cmp	r12, lr, lsr #6
-	ble	.L_neon_prime_pump
+	bls	.L_neon_prime_pump
 
-	itt	gt
-	movgt	r9, #(PLDOFFS)
-	rsbsgt	r9, r9, lr, lsr #6
-	ble	.L_neon_prime_pump
+	itt	hi
+	movhi	r9, #(PLDOFFS)
+	rsbshi	r9, r9, lr, lsr #6
+	bls	.L_neon_prime_pump
 
 	add	r10, r1, lr
 	bic	r10, #0x3F
@@ -90,10 +90,10 @@
 	sub	r12, r12, lr, lsr #6
 
 	cmp	r9, r12
-	itee	le
-	suble	r12, r12, r9
-	movgt	r9, r12
-	movgt	r12, #0
+	itee	ls
+	subls	r12, r12, r9
+	movhi	r9, r12
+	movhi	r12, #0
 
 	pld	[r1, #((PLDOFFS-1)*PLDSIZE)]
 .L_neon_copy_64_loop_outer_doublepld:
@@ -110,7 +110,7 @@
 	beq	.L_neon_pop_before_nopld
 
 	cmp	r12, #(512*1024/64)
-	blt	.L_neon_copy_64_loop_outer
+	blo	.L_neon_copy_64_loop_outer
 
 .L_neon_copy_64_loop_ddr:
 	vld1.32	{q0, q1}, [r1]!
@@ -176,7 +176,7 @@
 	vld1.8	{d0}, [r1]!
 	vst1.8	{d0}, [r0]!
 1:
-	bge	.L_neon_lt4
+	bpl	.L_neon_lt4
 	vld4.8	{d0[0], d1[0], d2[0], d3[0]}, [r1]!
 	vst4.8	{d0[0], d1[0], d2[0], d3[0]}, [r0]!
 

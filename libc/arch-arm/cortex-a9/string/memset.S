@@ -78,7 +78,7 @@ ENTRY(memset_a9)
         movs        ip, r2, lsl #29
         bcc         1f
         vst1.8      {d0}, [r3]!
-1:      bge         2f
+1:      bpl         2f
         vst1.32     {d0[0]}, [r3]!
 2:      movs        ip, r2, lsl #31
         strbmi      r1, [r3], #1
@@ -142,7 +142,7 @@ ENTRY(memset_a9)
 3:
         subs        r2, r2, #32
         mov         r3, r1
-        bmi         2f
+        blo         2f
 1:      subs        r2, r2, #32
         stmia       r0!, {r1,r3,r4,r5,r6,r7,r12,lr}
         bhs         1b

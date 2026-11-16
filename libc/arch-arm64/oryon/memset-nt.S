@@ -56,10 +56,10 @@ ENTRY(__memset_aarch64_nt)
     orr    A_l, A_l, A_l, lsl #32
 .Ltail_maybe_long:
     cmp    count, #64
-    b.ge   .LisValZero		/* Case : Size greater than or equal to 64 bytes */
+    b.hs   .LisValZero		/* Case : Size greater than or equal to 64 bytes */
 .Ltail_maybe_tiny:
     cmp    count, #15
-    b.le   .Ltail15tiny		/* Case : Size is less than or equal to 15 bytes */
+    b.ls   .Ltail15tiny		/* Case : Size is less than or equal to 15 bytes */
 .Ltail63:				/* Size is between 16 to 63 bytes */
 
 /* Size 16 - 63. Do 4x16 bytes wrire. Based on the size, adjust the offsets to cover full range of 16 - 63 bytes */
@@ -82,7 +82,7 @@ ENTRY(__memset_aarch64_nt)
 .Ltail15tiny:				/* Size is less than or equal to 15 bytes */
 /* Size < 16. Do 4x4 bytes wrire. Based on the size, adjust the offsets to cover full range of 1-15 bytes */
     cmp    count, 4			/* Check for Size < 4 bytes */
-    b.lt   .tiny_4B			/* Case : Size is less than 4 bytes */
+    b.lo   .tiny_4B			/* Case : Size is less than 4 bytes */
     add    tmp4, dst, count
     lsr    tmp1, count, 3
     sub    tmp2, tmp4, tmp1, lsl 2
@@ -108,11 +108,11 @@ ENTRY(__memset_aarch64_nt)
     /* For value = 0, if size is greater than BUF_SIZE_FOR_ZVA bytes,
      * use DC ZVA to set 0, else use STP instructions to set 0 	*/
     cmp    count, #512			/* For size greater than 512 bytes, use DC ZVA, it is better than STP */
-    b.gt   .Lzero_mem
+    b.hi   .Lzero_mem
 .Lnot_short:
     cmp    count, #98304
     /* Use non-temporal instruction if count > 98304 (96KB) . Non Temporal Store is beneficial is size is greater that 96 KB*/
-    bgt    .Lnot_short_nt
+    b.hi   .Lnot_short_nt
     neg    tmp2, dst
     ands   tmp2, tmp2, #15
     b.eq   2f
@@ -124,7 +124,7 @@ ENTRY(__memset_aarch64_nt)
     add    dst, dst, tmp2
     /* There may be less than 63 bytes to go now.  */
     cmp    count, #63
-    b.le   .Ltail_maybe_tiny
+    b.ls   .Ltail_maybe_tiny
 2:
     sub    dst, dst, #16		/* Pre-bias.  */
     sub    count, count, #64
@@ -135,7 +135,7 @@ ENTRY(__memset_aarch64_nt)
     stp    A_l, A_l, [dst, #64]
     add    dst, dst, #64
     subs   count, count, #64
-    b.ge   1b
+    b.hs   1b
     add    dst, dst, #16
     add    count, count, #64
     cbnz   count, .Ltail_maybe_tiny
@@ -152,7 +152,7 @@ ENTRY(__memset_aarch64_nt)
     add    dst, dst, tmp2
     /* There may be less than 63 bytes to go now.  */
     cmp    count, #63
-    b.le   .Ltail_maybe_tiny
+    b.ls   .Ltail_maybe_tiny
 2:
     sub    dst, dst, #16		/* Pre-bias.  */
     sub    count, count, #64
@@ -163,7 +163,7 @@ ENTRY(__memset_aarch64_nt)
     stnp   A_l, A_l, [dst, #64]
     add    dst, dst, #64
     subs   count, count, #64
-    b.ge   1b
+    b.hs   1b
     add    dst, dst, #16
     add    count, count, #64			/* Count is negative now as it is pre decreament in 2: Revert it to have exact count before branching to Ltail_maybe_tiny */
     cbnz   count, .Ltail_maybe_tiny
@@ -177,7 +177,7 @@ ENTRY(__memset_aarch64_nt)
     stp    A_l, A_l, [dst]
     add    dst, dst, tmp2
     cmp    count, #63
-    b.le   .Ltail_maybe_tiny
+    b.ls   .Ltail_maybe_tiny
 1:
     /* For zeroing small amounts of memory, it's not worth setting up
      * the line-clear code.  */
@@ -190,7 +190,7 @@ ENTRY(__memset_aarch64_nt)
     /* Compute how far we need to go to become suitably aligned.  We're
      * already at quad-word alignment.  */
     cmp    count, zva_len_x
-    b.lt   .Lnot_short		/* Not enough to reach alignment.  */
+    b.lo   .Lnot_short		/* Not enough to reach alignment.  */
     sub	   zva_bits_x, zva_len_x, #1
     neg    tmp2, dst
     ands   tmp2, tmp2, zva_bits_x
@@ -198,8 +198,8 @@ ENTRY(__memset_aarch64_nt)
     /* Not aligned, check that there's enough to copy after alignment.  */
     sub    tmp1, count, tmp2
     cmp    tmp1, #64
-    ccmp   tmp1, zva_len_x, #8, ge	/* NZCV=0b1000 */
-    b.lt   .Lnot_short
+    ccmp   tmp1, zva_len_x, #0, hs	/* NZCV=0b0000 */
+    b.lo   .Lnot_short
     /* We know that there's at least 64 bytes to zero and that it's safe
      * to overrun by 64 bytes.  */
     mov    count, tmp1
@@ -219,7 +219,7 @@ ENTRY(__memset_aarch64_nt)
     dc     zva, dst
     add    dst, dst, zva_len_x
     subs   count, count, zva_len_x
-    b.ge   3b
+    b.hs   3b
     ands   count, count, zva_bits_x
     b.ne   .Ltail_maybe_long
     ret

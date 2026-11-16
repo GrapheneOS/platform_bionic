@@ -147,7 +147,7 @@ L(copy96):
 L(copy_long):
     mov tmp2, #SMALL_BUFFER_SIZE
     cmp count, tmp2, LSL#10
-    bgt L(copy_long_nt)
+    b.hi L(copy_long_nt)
     /* Use backwards copy if there is an overlap.  */
     sub    tmp1, dstin, src
     cbz    tmp1, L(copy0)

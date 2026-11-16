@@ -282,16 +282,18 @@ ThreadMapping __allocate_thread_mapping(size_t stack_size, size_t stack_guard_si
   }
   int prot = PROT_READ | PROT_WRITE;
   const char* prot_str = "R+W";
+  bool stack_mte_enabled = false;
 #ifdef __aarch64__
   if (atomic_load(&__libc_memtag_stack)) {
     prot |= PROT_MTE;
     prot_str = "R+W+MTE";
+    stack_mte_enabled = (stack_size > 0);
   }
 #endif
   // Stack is at the lower end of mapped space, stack guard region is at the lower end of stack.
   // Make the usable portion of the stack between the guard region and random gap readable and
   // writable.
-  if (mprotect(space + stack_guard_size, stack_size, prot) != 0) {
+  if (stack_size > 0 && mprotect(space + stack_guard_size, stack_size, prot) != 0) {
     async_safe_format_log(
         ANDROID_LOG_WARN, "libc",
         "pthread_create failed: couldn't mprotect %s %zu-byte stack mapping region: %m", prot_str,
@@ -327,6 +329,7 @@ ThreadMapping __allocate_thread_mapping(size_t stack_size, size_t stack_guard_si
   result.mmap_size = mmap_size;
   result.mmap_base_unguarded = space + stack_guard_size;
   result.mmap_size_unguarded = mmap_size - stack_guard_size - PTHREAD_GUARD_SIZE;
+  result.stack_mte_enabled = stack_mte_enabled;
   result.libgen_buffers = space + mmap_size - PTHREAD_GUARD_SIZE - libgen_buffers_padded_size;
   result.static_tls = result.libgen_buffers - static_tls_layout_size;
   result.stack_base = space;
@@ -393,6 +396,8 @@ static int __allocate_thread(pthread_attr_t* attr, bionic_tcb** tcbp, void** chi
   thread->mmap_size_unguarded = mapping.mmap_size_unguarded;
   thread->stack_top = reinterpret_cast<uintptr_t>(stack_top);
   thread->stack_bottom = reinterpret_cast<uintptr_t>(attr->stack_base);
+  thread->stack_mte_enabled = stack_clean ? mapping.stack_mte_enabled : false;
+  thread->user_allocated_stack = !stack_clean;
 
   *tcbp = tcb;
   *child_stack = stack_top;
@@ -525,6 +530,28 @@ int pthread_create(pthread_t* thread_out, pthread_attr_t const* attr,
 // __pthread_internal_remap_stack_with_mte.
 #ifdef __aarch64__
   thread->should_allocate_stack_mte_ringbuffer = __libc_memtag_stack_abi;
+  if (atomic_load(&__libc_memtag_stack) && !thread->stack_mte_enabled) {
+    void* mte_base = thread->stack_mte_base();
+    size_t mte_size = thread->stack_mte_size();
+    if (mte_base != nullptr && mte_size > 0) {
+      if (mprotect(mte_base, mte_size, PROT_READ | PROT_WRITE | PROT_MTE) == 0) {
+        thread->stack_mte_enabled = true;
+      } else if (thread->user_allocated_stack && errno == EINVAL) {
+        async_safe_format_log(
+            ANDROID_LOG_WARN, "libc",
+            "warning: unable to set PROT_MTE on user-allocated stack in pthread_create: %m");
+      } else {
+        int mprotect_errno = errno;
+        thread->startup_handshake_lock.unlock();
+        if (thread->mmap_size != 0) {
+          munmap(thread->mmap_base, thread->mmap_size);
+        }
+        async_safe_format_log(ANDROID_LOG_WARN, "libc",
+                              "pthread_create failed: couldn't enable PROT_MTE on stack: %m");
+        return mprotect_errno;
+      }
+    }
+  }
 #else
   thread->should_allocate_stack_mte_ringbuffer = false;
 #endif

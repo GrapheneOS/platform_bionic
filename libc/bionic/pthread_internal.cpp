@@ -225,11 +225,21 @@ bool __pthread_internal_remap_stack_with_mte() {
     async_safe_fatal("error: failed to set PROT_MTE on main thread");
   }
   for (pthread_internal_t* t = g_thread_list; t != nullptr; t = t->next) {
-    if (t->terminating || t->is_main()) continue;
-    if (mprotect(t->mmap_base_unguarded, t->mmap_size_unguarded,
-                 PROT_READ | PROT_WRITE | PROT_MTE)) {
+    if (t->terminating || t->is_main() || t->stack_mte_enabled) continue;
+    void* mte_base = t->stack_mte_base();
+    size_t mte_size = t->stack_mte_size();
+    if (mte_base == nullptr || mte_size == 0) continue;
+    if (mprotect(mte_base, mte_size, PROT_READ | PROT_WRITE | PROT_MTE) != 0) {
+      if (t->user_allocated_stack && errno == EINVAL) {
+        async_safe_format_log(ANDROID_LOG_WARN, "libc",
+                              "warning: unable to set PROT_MTE on user-allocated stack for "
+                              "thread %d: %m",
+                              t->tid);
+        continue;
+      }
       async_safe_fatal("error: failed to set PROT_MTE on thread: %d", t->tid);
     }
+    t->stack_mte_enabled = true;
   }
   return true;
 #else

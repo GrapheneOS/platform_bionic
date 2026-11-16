@@ -185,8 +185,37 @@ class pthread_internal_t {
   bionic_tcb* bionic_tcb;
   char stack_mte_ringbuffer_vma_name_buffer[32];
   bool should_allocate_stack_mte_ringbuffer;
+  bool stack_mte_enabled;
+  bool user_allocated_stack;
+
+  void* stack_mte_base() const {
+    uintptr_t lo = 0;
+    uintptr_t hi = 0;
+    return stack_mte_bounds(&lo, &hi) ? reinterpret_cast<void*>(lo) : nullptr;
+  }
+
+  size_t stack_mte_size() const {
+    uintptr_t lo = 0;
+    uintptr_t hi = 0;
+    return stack_mte_bounds(&lo, &hi) ? (hi - lo) : 0;
+  }
 
   bool is_main() { return start_routine == nullptr; }
+
+ private:
+  bool stack_mte_bounds(uintptr_t* lo, uintptr_t* hi) const {
+    if (user_allocated_stack) {
+      *lo = page_start(stack_bottom);
+      *hi = page_end(stack_top);
+      return *hi > *lo;
+    }
+    if (mmap_base_unguarded == nullptr) {
+      return false;
+    }
+    *lo = reinterpret_cast<uintptr_t>(mmap_base_unguarded);
+    *hi = __builtin_align_up(stack_top, page_size());
+    return *hi > *lo;
+  }
 };
 
 struct ThreadMapping {
@@ -194,6 +223,7 @@ struct ThreadMapping {
   size_t mmap_size;
   char* mmap_base_unguarded;
   size_t mmap_size_unguarded;
+  bool stack_mte_enabled;
 
   char* static_tls;
   char* stack_base;

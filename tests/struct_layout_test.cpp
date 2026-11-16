@@ -59,6 +59,8 @@ void tests(CheckSize check_size, CheckOffset check_offset) {
   CHECK_OFFSET(pthread_internal_t, bionic_tcb, 784);
   CHECK_OFFSET(pthread_internal_t, stack_mte_ringbuffer_vma_name_buffer, 792);
   CHECK_OFFSET(pthread_internal_t, should_allocate_stack_mte_ringbuffer, 824);
+  CHECK_OFFSET(pthread_internal_t, stack_mte_enabled, 825);
+  CHECK_OFFSET(pthread_internal_t, user_allocated_stack, 826);
   CHECK_SIZE(bionic_tls, 4016);
   CHECK_OFFSET(bionic_tls, key_data, 0);
   CHECK_OFFSET(bionic_tls, locale, 2080);
@@ -104,6 +106,8 @@ void tests(CheckSize check_size, CheckOffset check_offset) {
   CHECK_OFFSET(pthread_internal_t, bionic_tcb, 672);
   CHECK_OFFSET(pthread_internal_t, stack_mte_ringbuffer_vma_name_buffer, 676);
   CHECK_OFFSET(pthread_internal_t, should_allocate_stack_mte_ringbuffer, 708);
+  CHECK_OFFSET(pthread_internal_t, stack_mte_enabled, 709);
+  CHECK_OFFSET(pthread_internal_t, user_allocated_stack, 710);
   CHECK_SIZE(bionic_tls, 2892);
   CHECK_OFFSET(bionic_tls, key_data, 0);
   CHECK_OFFSET(bionic_tls, locale, 1040);

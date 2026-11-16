@@ -224,6 +224,21 @@ static bool GetHeapprofdProgramProperty(char* data, size_t size) {
 static _Atomic (const MallocDispatch*) gPreviousDefaultDispatchTable = nullptr;
 static MallocDispatch gEphemeralDispatch;
 
+// Under BOTH_H_MALLOC_AND_SCUDO, Scudo processes install __scudo_malloc_dispatch as both
+// current_dispatch_table and default_dispatch_table, whereas hardened_malloc leaves them
+// nullptr so libc fast-paths directly to h_* symbols. Preserve the Scudo dispatch table
+// across heapprofd ephemeral/hook transitions and M_RESET_HOOKS so Scudo allocations are
+// never routed to h_free().
+static inline const MallocDispatch* NativeAllocatorDefaultDispatch() {
+#if defined(BOTH_H_MALLOC_AND_SCUDO) && defined(USE_SCUDO)
+  const MallocDispatch* native_dispatch = NativeAllocatorDispatch();
+  if (native_dispatch != nullptr && native_dispatch->free == scudo_free) {
+    return native_dispatch;
+  }
+#endif
+  return nullptr;
+}
+
 void HandleHeapprofdSignal() {
   if (atomic_load(&gHeapprofdState) == kIncompatibleHooks) {
     error_log("%s: not enabling heapprofd, malloc_debug/malloc_hooks are enabled.", getprogname());
@@ -270,7 +285,8 @@ void HandleHeapprofdSignal() {
         // We've checked that no other malloc interceptors are being used by
         // validating `gHeapprofdIncompatibleHooks` above, so we don't need to
         // worry about that case here.
-        atomic_store(&gPreviousDefaultDispatchTable, nullptr);
+        const MallocDispatch* native_default = NativeAllocatorDefaultDispatch();
+        atomic_store(&gPreviousDefaultDispatchTable, native_default);
         gEphemeralDispatch = *NativeAllocatorDispatch();
       }
     } else if (expected == kEphemeralHookInstalled) {
@@ -366,7 +382,9 @@ void HeapprofdInstallHooksAtInit(libc_globals *globals) {
   // the previous dispatch table. If DispatchReset() gets called later, we want
   // to be able to restore the dispatch. We're still under
   // MaybeModifyGlobals locks at this point.
-  atomic_store(&gPreviousDefaultDispatchTable, GetDefaultDispatchTable());
+  const MallocDispatch* current_default = GetDefaultDispatchTable();
+  atomic_store(&gPreviousDefaultDispatchTable,
+               current_default != nullptr ? current_default : NativeAllocatorDefaultDispatch());
   MaybeModifyGlobals(kWithoutLock, [globals] {
     MallocHeapprofdState expected = kInitialState;
     if (atomic_compare_exchange_strong(&gHeapprofdState, &expected, kInstallingHook)) {
@@ -401,6 +419,9 @@ extern "C" void* MallocInitHeapprofdHook(size_t bytes) {
     if (atomic_compare_exchange_strong(&gHeapprofdState, &expected, kRemovingEphemeralHook)) {
       __libc_globals.mutate([](libc_globals* globals) {
         const MallocDispatch* previous_dispatch = atomic_load(&gPreviousDefaultDispatchTable);
+        if (previous_dispatch == nullptr) {
+          previous_dispatch = NativeAllocatorDefaultDispatch();
+        }
         atomic_store(&globals->default_dispatch_table, previous_dispatch);
         if (!MallocLimitInstalled()) {
           atomic_store(&globals->current_dispatch_table, previous_dispatch);
@@ -457,6 +478,9 @@ static bool DispatchReset() {
     if(atomic_compare_exchange_strong(&gHeapprofdState, &expected, kUninstallingHook)){
       __libc_globals.mutate([](libc_globals* globals) {
         const MallocDispatch* previous_dispatch = atomic_load(&gPreviousDefaultDispatchTable);
+        if (previous_dispatch == nullptr) {
+          previous_dispatch = NativeAllocatorDefaultDispatch();
+        }
         atomic_store(&globals->default_dispatch_table, previous_dispatch);
         if (!MallocLimitInstalled()) {
           atomic_store(&globals->current_dispatch_table, previous_dispatch);
